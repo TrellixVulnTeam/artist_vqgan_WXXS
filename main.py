@@ -183,13 +183,14 @@ class DataModuleFromConfig(pl.LightningDataModule):
 
 
 class SetupCallback(Callback):
-    def __init__(self, resume, now, logdir, ckptdir, cfgdir, config, lightning_config):
+    def __init__(self, resume, now, logdir, ckptdir, cfgdir, tensorboarddir, config, lightning_config):
         super().__init__()
         self.resume = resume
         self.now = now
         self.logdir = logdir
         self.ckptdir = ckptdir
         self.cfgdir = cfgdir
+        self.tensorboarddir = tensorboarddir
         self.config = config
         self.lightning_config = lightning_config
 
@@ -199,6 +200,7 @@ class SetupCallback(Callback):
             os.makedirs(self.logdir, exist_ok=True)
             os.makedirs(self.ckptdir, exist_ok=True)
             os.makedirs(self.cfgdir, exist_ok=True)
+            os.makedirs(self.tensorboarddir, exist_ok=True)
 
             print("Project config")
             print(self.config.pretty())
@@ -451,14 +453,14 @@ if __name__ == "__main__":
         lightning_config.trainer = trainer_config
 
         # model
-        config.model.params.lossconfig.params.disc_start *= trainer_config.accumulate_grad_batches or 1
         model = instantiate_from_config(config.model)
 
         # trainer and callbacks
         trainer_kwargs = dict()
 
         # logger
-        trainer_kwargs['logger'] = TensorBoardLogger(save_dir=tensorboard_dir, name='', version='')
+        trainer_kwargs['logger'] = \
+            TensorBoardLogger(save_dir=tensorboard_dir, name='', version='', default_hp_metric=False)
 
         # modelcheckpoint - use TrainResult/EvalResult(checkpoint_on=metric) to
         # specify which metric is used to determine best models
@@ -490,6 +492,7 @@ if __name__ == "__main__":
                     "logdir": logdir,
                     "ckptdir": ckptdir,
                     "cfgdir": cfgdir,
+                    "tensorboarddir": tensorboard_dir,
                     "config": config,
                     "lightning_config": lightning_config,
                 }

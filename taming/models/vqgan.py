@@ -94,7 +94,7 @@ class VQModel(pl.LightningModule):
         x = self.get_input(batch, self.image_key)
         xrec, qloss = self(x)
 
-        if batch_idx >= self.loss.discriminator_iter_start:
+        if self.global_step >= self.loss.discriminator_iter_start:
             random_z = torch.rand(x.shape[0], *self.decoder.z_shape[1:]).to(self.device) * 2. - 1.
             fake = self.forward_with_latent(random_z)
         else:
@@ -104,17 +104,14 @@ class VQModel(pl.LightningModule):
             # autoencode
             aeloss, log_dict_ae = self.loss(qloss, x, xrec, fake, optimizer_idx, self.global_step,
                                             last_layer=self.get_last_layer(), split="train")
-
-            self.log("train_total/aeloss", aeloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
-            self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=True, on_epoch=True)
+            self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=True, on_epoch=False)
             return aeloss
 
         if optimizer_idx == 1:
             # discriminator
             discloss, log_dict_disc = self.loss(qloss, x, xrec, fake, optimizer_idx, self.global_step,
                                             last_layer=self.get_last_layer(), split="train")
-            self.log("train_adversarial/discloss", discloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
-            self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=True, on_epoch=True)
+            self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=True, on_epoch=False)
             return discloss
 
     def validation_step(self, batch, batch_idx):
@@ -125,14 +122,8 @@ class VQModel(pl.LightningModule):
 
         discloss, log_dict_disc = self.loss(qloss, x, xrec, None, 1, self.global_step,
                                             last_layer=self.get_last_layer(), split="val")
-        rec_loss = log_dict_ae["val_supervised/rec_loss"]
-        self.log("val_supervised/rec_loss", rec_loss,
-                   prog_bar=True, logger=True, on_step=True, on_epoch=True, sync_dist=True)
-        self.log("val_total/aeloss", aeloss,
-                   prog_bar=True, logger=True, on_step=True, on_epoch=True, sync_dist=True)
-        self.log_dict(log_dict_ae)
-        self.log_dict(log_dict_disc)
-        return self.log_dict
+        self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=False, on_epoch=True)
+        self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=False, on_epoch=True)
 
     def configure_optimizers(self):
         lr = self.learning_rate
