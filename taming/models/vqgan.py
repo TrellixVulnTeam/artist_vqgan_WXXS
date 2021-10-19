@@ -43,6 +43,7 @@ class VQModel(pl.LightningModule):
             self.monitor = monitor
 
         self.register_buffer('zs', torch.rand((36, *self.decoder.z_shape[1:])))
+        self.z_scale = 6.65
 
     def init_from_ckpt(self, path, ignore_keys=list()):
         sd = torch.load(path, map_location="cpu")["state_dict"]
@@ -74,11 +75,11 @@ class VQModel(pl.LightningModule):
     def forward(self, input):
         quant, diff, _ = self.encode(input)
         quant = torch.tanh(quant)
-        dec = self.decode(quant)
+        dec = self.decode(quant * self.z_scale)
         return dec, diff
 
     def forward_with_latent(self, z):
-        fake = self.decoder(z)
+        fake = self.decoder(z * self.z_scale)
         return fake
 
     def get_input(self, batch, k):
@@ -92,8 +93,11 @@ class VQModel(pl.LightningModule):
         x = self.get_input(batch, self.image_key)
         xrec, qloss = self(x)
 
-        random_z = torch.rand(x.shape[0], *self.decoder.z_shape[1:]).to(self.device)
-        fake = self.forward_with_latent(random_z)
+        if batch_idx >= self.loss.discriminator_iter_start:
+            random_z = torch.rand(x.shape[0], *self.decoder.z_shape[1:]).to(self.device)
+            fake = self.forward_with_latent(random_z)
+        else:
+            fake = None
 
         if optimizer_idx == 0:
             # autoencode
