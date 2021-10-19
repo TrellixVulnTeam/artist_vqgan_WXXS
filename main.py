@@ -210,8 +210,6 @@ class SetupCallback(Callback):
             OmegaConf.save(OmegaConf.create({"lightning": self.lightning_config}),
                            os.path.join(self.cfgdir, "{}-lightning.yaml".format(self.now)))
 
-            print("All config")
-            print(self.lightning_config.pretty())
             OmegaConf.save(OmegaConf.merge(self.config, OmegaConf.create({"lightning": self.lightning_config})),
                            os.path.join(self.cfgdir, "{}-all.yaml".format(self.now)))
 
