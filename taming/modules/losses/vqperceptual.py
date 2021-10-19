@@ -17,16 +17,18 @@ def adopt_weight(weight, global_step, threshold=0, value=0.):
     return weight
 
 
-def hinge_d_loss(logits_real, logits_fake):
+def hinge_d_loss(logits_real, logits_rec, logits_fake):
     loss_real = torch.mean(F.relu(1. - logits_real))
+    loss_rec = torch.mean(F.relu(1. + logits_rec))
     loss_fake = torch.mean(F.relu(1. + logits_fake))
-    d_loss = 0.5 * (loss_real + loss_fake)
+    d_loss = 0.5 * (loss_real + loss_rec + loss_fake)
     return d_loss
 
 
-def vanilla_d_loss(logits_real, logits_fake):
+def vanilla_d_loss(logits_real, logits_rec, logits_fake):
     d_loss = 0.5 * (
         torch.mean(torch.nn.functional.softplus(-logits_real)) +
+        torch.mean(torch.nn.functional.softplus(logits_rec)) +
         torch.mean(torch.nn.functional.softplus(logits_fake)))
     return d_loss
 
@@ -141,15 +143,18 @@ class VQLPIPSWithDiscriminator(nn.Module):
             if disc_factor > 0:
                 if cond is None:
                     logits_real = self.discriminator(inputs.contiguous().detach())
-                    logits_fake = self.discriminator(reconstructions.contiguous().detach())
+                    logits_rec = self.discriminator(reconstructions.contiguous().detach())
+                    logits_fake = self.discriminator(fake.contiguous().detach())
                 else:
                     logits_real = self.discriminator(torch.cat((inputs.contiguous().detach(), cond), dim=1))
-                    logits_fake = self.discriminator(torch.cat((reconstructions.contiguous().detach(), cond), dim=1))
+                    logits_rec = self.discriminator(torch.cat((reconstructions.contiguous().detach(), cond), dim=1))
+                    logits_fake = self.discriminator(torch.cat((fake.contiguous().detach(), cond), dim=1))
 
-                d_loss = disc_factor * self.disc_loss(logits_real, logits_fake)
+                d_loss = disc_factor * self.disc_loss(logits_real, logits_rec, logits_fake)
 
                 log = {"{}/disc_loss".format(split): d_loss.clone().detach().mean(),
                        "{}/logits_real".format(split): logits_real.detach().mean(),
+                       "{}/logits_rec".format(split): logits_rec.detach().mean(),
                        "{}/logits_fake".format(split): logits_fake.detach().mean()
                        }
             else:
@@ -157,6 +162,7 @@ class VQLPIPSWithDiscriminator(nn.Module):
 
                 log = {"{}/disc_loss".format(split): torch.tensor(0.0),
                        "{}/logits_real".format(split): torch.tensor(0.0),
+                       "{}/logits_rec".format(split): torch.tensor(0.0),
                        "{}/logits_fake".format(split): torch.tensor(0.0)
                        }
 
