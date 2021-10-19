@@ -451,6 +451,7 @@ if __name__ == "__main__":
         lightning_config.trainer = trainer_config
 
         # model
+        config.model.params.lossconfig.params.disc_start *= trainer_config.accumulate_grad_batches or 1
         model = instantiate_from_config(config.model)
 
         # trainer and callbacks

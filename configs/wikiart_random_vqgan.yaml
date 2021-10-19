@@ -43,3 +43,6 @@ data:
       target: taming.data.wikiart.WikiArtValidation
       params:
         size: 256
+lightning:
+  trainer:
+    accumulate_grad_batches: 6
