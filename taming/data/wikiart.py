@@ -75,6 +75,8 @@ class WikiArtTrain(WikiArtBase):
         paths = [os.path.join(root, relpath) for relpath in relpaths]
         self.data = ImagePaths(paths=paths, size=size, random_crop=True)
 
+        print(f'total {len(self.data)} training data.')
+
 
 class WikiArtValidation(WikiArtBase):
     def __init__(self, size):
@@ -83,3 +85,5 @@ class WikiArtValidation(WikiArtBase):
         relpaths = get_all_images(root)['val']
         paths = [os.path.join(root, relpath) for relpath in relpaths]
         self.data = ImagePaths(paths=paths, size=size, random_crop=True)
+
+        print(f'total {len(self.data)} validation data.')
