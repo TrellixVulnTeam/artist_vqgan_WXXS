@@ -70,8 +70,14 @@ class VQModel(pl.LightningModule):
 
     def forward(self, input):
         quant, diff, _ = self.encode(input)
+        quant = torch.tanh(quant)
         dec = self.decode(quant)
         return dec, diff
+
+    def random_forward(self, batch_size):
+        random_z = torch.rand(batch_size, *self.decoder.z_shape).to(self.device)
+        fake = self.decoder(random_z)
+        return fake
 
     def get_input(self, batch, k):
         x = batch[k]
@@ -83,6 +89,7 @@ class VQModel(pl.LightningModule):
     def training_step(self, batch, batch_idx, optimizer_idx):
         x = self.get_input(batch, self.image_key)
         xrec, qloss = self(x)
+        fake = self.random_forward(x.shape[0])
 
         if optimizer_idx == 0:
             # autoencode
