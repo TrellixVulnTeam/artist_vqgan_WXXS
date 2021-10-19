@@ -2,6 +2,7 @@ model:
   base_learning_rate: 4.5e-06
   target: taming.models.vqgan.VQModel
   params:
+    ckpt_path: /data/models/taming_transformer/wikiart/wikiart_vqgan.ckpt
     embed_dim: 256
     n_embed: 16384
     ddconfig:
@@ -42,5 +43,3 @@ data:
       target: taming.data.wikiart.WikiArtValidation
       params:
         size: 256
-lightning:
-  modelcheckpoint: /data/models/taming_transformer/wikiart/wikiart_vqgan.ckpt
