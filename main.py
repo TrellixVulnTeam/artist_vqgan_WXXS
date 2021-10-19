@@ -103,6 +103,12 @@ def get_parser(**parser_kwargs):
         default="",
         help="post-postfix for default name",
     )
+    parser.add_argument(
+        "--basedir",
+        type=str,
+        default=".",
+        help="the base directory",
+    )
 
     return parser
 
@@ -405,9 +411,9 @@ if __name__ == "__main__":
         else:
             name = ""
         nowname = now+name+opt.postfix
-        logdir = os.path.join("logs", nowname)
+        logdir = os.path.join(opt.basedir, "checkpoints", nowname)
 
-    ckptdir = os.path.join(logdir, "checkpoints")
+    ckptdir = os.path.join(logdir, "models")
     cfgdir = os.path.join(logdir, "configs")
     tensorboard_dir = os.path.join(logdir, 'tensorboard')
     seed_everything(opt.seed)
@@ -441,7 +447,7 @@ if __name__ == "__main__":
         trainer_kwargs = dict()
 
         # logger
-        trainer_kwargs['logger'] = TensorBoardLogger(save_dir=tensorboard_dir)
+        trainer_kwargs['logger'] = TensorBoardLogger(save_dir=tensorboard_dir, name='', version='')
 
         # modelcheckpoint - use TrainResult/EvalResult(checkpoint_on=metric) to
         # specify which metric is used to determine best models

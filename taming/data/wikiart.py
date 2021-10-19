@@ -4,10 +4,13 @@ import warnings
 
 import numpy as np
 from tqdm import tqdm
-from PIL import Image
+from PIL import Image, ImageFile
 from torch.utils.data import Dataset
 
 from taming.data.base import ImagePaths
+
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+Image.MAX_IMAGE_PIXELS = None
 
 
 def test_images(root, images):
@@ -33,7 +36,7 @@ def get_all_images(root):
         for category in [d for d in os.listdir(root) if os.path.isdir(os.path.join(root, d))]:
             category_dir = os.path.join(root, category)
             images.extend([os.path.join(category, fname) for fname in os.listdir(category_dir)
-                           if os.path.splitext(fname)[1].lower() in Image.EXTENSION])
+                           if os.path.splitext(fname)[1].lower() in ['.jpg', '.jpeg', '.png']])
         passed_images = test_images(root, images)
 
         random.shuffle(passed_images)
@@ -67,7 +70,7 @@ class WikiArtBase(Dataset):
 class WikiArtTrain(WikiArtBase):
     def __init__(self, size):
         super().__init__()
-        root = "data/datasets/art/wiki-art/"
+        root = "/data/datasets/art/wiki-art/"
         relpaths = get_all_images(root)['train']
         paths = [os.path.join(root, relpath) for relpath in relpaths]
         self.data = ImagePaths(paths=paths, size=size, random_crop=True)
@@ -76,7 +79,7 @@ class WikiArtTrain(WikiArtBase):
 class WikiArtValidation(WikiArtBase):
     def __init__(self, size):
         super().__init__()
-        root = "data/datasets/art/wiki-art/"
+        root = "/data/datasets/art/wiki-art/"
         relpaths = get_all_images(root)['val']
         paths = [os.path.join(root, relpath) for relpath in relpaths]
         self.data = ImagePaths(paths=paths, size=size, random_crop=True)
