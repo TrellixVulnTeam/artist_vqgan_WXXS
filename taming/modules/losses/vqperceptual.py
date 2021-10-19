@@ -88,17 +88,17 @@ class VQLPIPSWithDiscriminator(nn.Module):
         #nll_loss = torch.sum(nll_loss) / nll_loss.shape[0]
         nll_loss = torch.mean(nll_loss)
 
-        log = {"{}/quant_loss".format(split): codebook_loss.detach().mean(),
-               "{}/nll_loss".format(split): nll_loss.detach().mean(),
-               "{}/rec_loss".format(split): rec_loss.detach().mean(),
-               "{}/p_loss".format(split): p_loss.detach().mean(),
-               }
-
         # now the GAN part
         if optimizer_idx == 0:
             # generator update
             disc_factor = adopt_weight(self.disc_factor, global_step, threshold=self.discriminator_iter_start)
-            log["{}/disc_factor".format(split)] = torch.tensor(disc_factor)
+
+            log = {"{}_supervised/quant_loss".format(split): codebook_loss.detach().mean(),
+                   "{}_supervised/nll_loss".format(split): nll_loss.detach().mean(),
+                   "{}_supervised/rec_loss".format(split): rec_loss.detach().mean(),
+                   "{}_supervised/p_loss".format(split): p_loss.detach().mean(),
+                   "{}_adversarial/disc_factor".format(split): torch.tensor(disc_factor)
+                   }
 
             if disc_factor > 0:
                 if cond is None:
@@ -125,19 +125,22 @@ class VQLPIPSWithDiscriminator(nn.Module):
                 loss = nll_loss + disc_factor * d_weight * (g_rec_loss + d_fake_weight * g_fake_loss) \
                        + self.codebook_weight * codebook_loss.mean()
 
-                log["{}/d_weight".format(split)] = d_weight.detach()
-                log["{}/g_rec_loss".format(split)] = g_rec_loss.detach().mean()
                 if fake is not None:
-                    log["{}/d_fake_weight".format(split)] = d_fake_weight.detach()
-                    log["{}/g_fake_loss".format(split)] = g_fake_loss.detach().mean()
+                    log.update({
+                        "{}_adversarial/d_fake_weight".format(split): d_fake_weight.detach(),
+                        "{}_adversarial/g_fake_loss".format(split): g_fake_loss.detach().mean()
+                    })
 
             else:
+                d_weight = torch.tensor(0.0)
+                g_rec_loss = torch.tensor(0.0)
                 loss = nll_loss + self.codebook_weight * codebook_loss.mean()
 
-                log["{}/d_weight".format(split)] = torch.tensor(0.0)
-                log["{}/g_loss".format(split)] = torch.tensor(0.0)
-
-            log["{}/total_loss".format(split)] = loss.clone().detach().mean()
+            log.update({
+                "{}_adversarial/d_weight".format(split): d_weight.detach(),
+                "{}_adversarial/g_rec_loss".format(split): g_rec_loss.detach().mean(),
+                "{}_total/total_loss".format(split): loss.clone().detach().mean()
+            })
             return loss, log
 
         if optimizer_idx == 1:
@@ -157,20 +160,16 @@ class VQLPIPSWithDiscriminator(nn.Module):
 
                 d_loss = disc_factor * self.disc_loss(logits_real, logits_rec, logits_fake)
 
-                log = {"{}/disc_loss".format(split): d_loss.clone().detach().mean(),
-                       "{}/logits_real".format(split): logits_real.detach().mean(),
-                       "{}/logits_rec".format(split): logits_rec.detach().mean(),
-                       }
-                if fake is not None:
-                    log["{}/logits_fake".format(split)] = logits_fake.detach().mean()
             else:
                 d_loss = torch.tensor(0., requires_grad=True).to(reconstructions.device)
+                logits_real = torch.tensor(0.)
+                logits_rec = torch.tensor(0.)
+                logits_fake = torch.tensor(0.)
 
-                log = {"{}/disc_loss".format(split): torch.tensor(0.0),
-                       "{}/logits_real".format(split): torch.tensor(0.0),
-                       "{}/logits_rec".format(split): torch.tensor(0.0),
-                       }
-                if fake is not None:
-                    log["{}/logits_fake".format(split)] = torch.tensor(0.0),
-
+            log = {"{}_adversarial/disc_loss".format(split): d_loss.clone().detach().mean(),
+                   "{}_adversarial/logits_real".format(split): logits_real.detach().mean(),
+                   "{}_adversarial/logits_rec".format(split): logits_rec.detach().mean(),
+                   }
+            if fake is not None:
+                log.update({"{}_adversarial/logits_fake".format(split): logits_fake.detach().mean()})
             return d_loss, log
