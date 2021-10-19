@@ -42,7 +42,9 @@ class VQModel(pl.LightningModule):
         if monitor is not None:
             self.monitor = monitor
 
-        self.register_buffer('zs', torch.rand((36, *self.decoder.z_shape[1:])))
+        random_latent = torch.rand((36, *self.decoder.z_shape[1:]))
+        random_latent = random_latent * 2. - 1.
+        self.register_buffer('zs', random_latent)
         self.z_scale = 6.65
 
     def init_from_ckpt(self, path, ignore_keys=list()):
@@ -74,8 +76,7 @@ class VQModel(pl.LightningModule):
 
     def forward(self, input):
         quant, diff, _ = self.encode(input)
-        quant = torch.tanh(quant)
-        dec = self.decode(quant * self.z_scale)
+        dec = self.decode(torch.tanh(quant) * self.z_scale)
         return dec, diff
 
     def forward_with_latent(self, z):
@@ -94,7 +95,7 @@ class VQModel(pl.LightningModule):
         xrec, qloss = self(x)
 
         if batch_idx >= self.loss.discriminator_iter_start:
-            random_z = torch.rand(x.shape[0], *self.decoder.z_shape[1:]).to(self.device)
+            random_z = torch.rand(x.shape[0], *self.decoder.z_shape[1:]).to(self.device) * 2. - 1.
             fake = self.forward_with_latent(random_z)
         else:
             fake = None
