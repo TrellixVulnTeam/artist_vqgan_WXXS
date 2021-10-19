@@ -21,7 +21,7 @@ class ConcatDatasetWithIndex(ConcatDataset):
 
 
 class ImagePaths(Dataset):
-    def __init__(self, paths, size=None, random_crop=False, labels=None):
+    def __init__(self, paths, size=None, random_crop=False, random_hflip=False, labels=None, *args):
         self.size = size
         self.random_crop = random_crop
 
@@ -30,12 +30,21 @@ class ImagePaths(Dataset):
         self._length = len(paths)
 
         if self.size is not None and self.size > 0:
+            transforms = list()
             self.rescaler = albumentations.SmallestMaxSize(max_size = self.size)
+            transforms.append(self.rescaler)
+
             if not self.random_crop:
                 self.cropper = albumentations.CenterCrop(height=self.size,width=self.size)
             else:
                 self.cropper = albumentations.RandomCrop(height=self.size,width=self.size)
-            self.preprocessor = albumentations.Compose([self.rescaler, self.cropper])
+            transforms.append(self.cropper)
+
+            if random_hflip:
+                self.hflip = albumentations.HorizontalFlip(p=0.5)
+                transforms.append(self.hflip)
+
+            self.preprocessor = albumentations.Compose(transforms)
         else:
             self.preprocessor = lambda **kwargs: kwargs
 

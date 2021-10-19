@@ -27,7 +27,7 @@ model:
       params:
         disc_conditional: false
         disc_in_channels: 3
-        disc_start: 15000
+        disc_start: 10000
         disc_weight: 0.8
         codebook_weight: 1.0
 data:
@@ -39,10 +39,14 @@ data:
       target: taming.data.wikiart.WikiArtTrain
       params:
         size: 256
+        random_crop: true
+        random_hflip: true
     validation:
       target: taming.data.wikiart.WikiArtValidation
       params:
         size: 256
+        random_crop: true
+        random_hflip: true
 lightning:
   trainer:
     accumulate_grad_batches: 6

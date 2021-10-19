@@ -68,22 +68,22 @@ class WikiArtBase(Dataset):
 
 
 class WikiArtTrain(WikiArtBase):
-    def __init__(self, size):
+    def __init__(self, size, random_crop=True, random_hflip=True, *args):
         super().__init__()
         root = "/data/datasets/art/wiki-art/"
         relpaths = get_all_images(root)['train']
         paths = [os.path.join(root, relpath) for relpath in relpaths]
-        self.data = ImagePaths(paths=paths, size=size, random_crop=True)
+        self.data = ImagePaths(paths=paths, size=size, random_crop=random_crop, random_hflip=random_hflip)
 
         print(f'total {len(self.data)} training data.')
 
 
 class WikiArtValidation(WikiArtBase):
-    def __init__(self, size):
+    def __init__(self, size, random_crop=True, random_hflip=True, *args):
         super().__init__()
         root = "/data/datasets/art/wiki-art/"
         relpaths = get_all_images(root)['val']
         paths = [os.path.join(root, relpath) for relpath in relpaths]
-        self.data = ImagePaths(paths=paths, size=size, random_crop=True)
+        self.data = ImagePaths(paths=paths, size=size, random_crop=random_crop, random_hflip=random_hflip)
 
         print(f'total {len(self.data)} validation data.')
