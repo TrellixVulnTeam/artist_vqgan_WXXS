@@ -104,12 +104,13 @@ class VQLPIPSWithDiscriminator(nn.Module):
                 if cond is None:
                     assert not self.disc_conditional
                     logits_rec = self.discriminator(reconstructions.contiguous())
-                    logits_fake = self.discriminator(fake.contiguous()) if fake is not None else 0.
+                    logits_fake = self.discriminator(fake.contiguous()) \
+                        if fake is not None else torch.tensor(0.).to(logits_rec.device)
                 else:
                     assert self.disc_conditional
                     logits_rec = self.discriminator(torch.cat((reconstructions.contiguous(), cond), dim=1))
-                    logits_fake = \
-                        self.discriminator(torch.cat((fake.contiguous(), cond), dim=1)) if fake is not None else 0.
+                    logits_fake = self.discriminator(torch.cat((fake.contiguous(), cond), dim=1)) \
+                        if fake is not None else torch.tensor(0.).to(logits_rec.device)
                 g_rec_loss = -torch.mean(logits_rec)
                 g_fake_loss = -torch.mean(logits_fake)
 
@@ -151,12 +152,12 @@ class VQLPIPSWithDiscriminator(nn.Module):
                     logits_real = self.discriminator(inputs.contiguous().detach())
                     logits_rec = self.discriminator(reconstructions.contiguous().detach())
                     logits_fake = self.discriminator(fake.contiguous().detach()) \
-                        if fake is not None else torch.tensor(-1.).to(logits_rec.device)
+                        if fake is not None else torch.tensor(1.).to(logits_rec.device)
                 else:
                     logits_real = self.discriminator(torch.cat((inputs.contiguous().detach(), cond), dim=1))
                     logits_rec = self.discriminator(torch.cat((reconstructions.contiguous().detach(), cond), dim=1))
                     logits_fake = self.discriminator(torch.cat((fake.contiguous().detach(), cond), dim=1)) \
-                        if fake is not None else torch.tensor(-1.).to(logits_rec.device)
+                        if fake is not None else torch.tensor(1.).to(logits_rec.device)
 
                 d_loss = disc_factor * self.disc_loss(logits_real, logits_rec, logits_fake)
 
