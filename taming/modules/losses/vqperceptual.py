@@ -104,17 +104,19 @@ class VQLPIPSWithDiscriminator(nn.Module):
                 if cond is None:
                     assert not self.disc_conditional
                     logits_rec = self.discriminator(reconstructions.contiguous())
-                    logits_fake = self.discriminator(fake.contiguous())
+                    logits_fake = self.discriminator(fake.contiguous()) if fake is not None else 0.
                 else:
                     assert self.disc_conditional
                     logits_rec = self.discriminator(torch.cat((reconstructions.contiguous(), cond), dim=1))
-                    logits_fake = self.discriminator(torch.cat((fake.contiguous(), cond), dim=1))
+                    logits_fake = \
+                        self.discriminator(torch.cat((fake.contiguous(), cond), dim=1)) if fake is not None else 0.
                 g_rec_loss = -torch.mean(logits_rec)
                 g_fake_loss = -torch.mean(logits_fake)
 
                 try:
                     d_weight = self.calculate_adaptive_weight(nll_loss, g_rec_loss, last_layer=last_layer)
-                    d_fake_weight = self.calculate_adaptive_weight(g_rec_loss, g_fake_loss, last_layer=last_layer)
+                    d_fake_weight = self.calculate_adaptive_weight(g_rec_loss, g_fake_loss, last_layer=last_layer) \
+                        if fake is not None else 0.
                 except RuntimeError:
                     assert not self.training
                     d_weight = torch.tensor(0.0)
@@ -124,9 +126,10 @@ class VQLPIPSWithDiscriminator(nn.Module):
                        + self.codebook_weight * codebook_loss.mean()
 
                 log["{}/d_weight".format(split)] = d_weight.detach()
-                log["{}/d_fake_weight".format(split)] = d_fake_weight.detach()
                 log["{}/g_rec_loss".format(split)] = g_rec_loss.detach().mean()
-                log["{}/g_fake_loss".format(split)] = g_fake_loss.detach().mean()
+                if fake is not None:
+                    log["{}/d_fake_weight".format(split)] = d_fake_weight.detach()
+                    log["{}/g_fake_loss".format(split)] = g_fake_loss.detach().mean()
 
             else:
                 loss = nll_loss + self.codebook_weight * codebook_loss.mean()
@@ -144,26 +147,30 @@ class VQLPIPSWithDiscriminator(nn.Module):
                 if cond is None:
                     logits_real = self.discriminator(inputs.contiguous().detach())
                     logits_rec = self.discriminator(reconstructions.contiguous().detach())
-                    logits_fake = self.discriminator(fake.contiguous().detach())
+                    logits_fake = self.discriminator(fake.contiguous().detach()) \
+                        if fake is not None else torch.tensor(-1.).to(logits_rec.device)
                 else:
                     logits_real = self.discriminator(torch.cat((inputs.contiguous().detach(), cond), dim=1))
                     logits_rec = self.discriminator(torch.cat((reconstructions.contiguous().detach(), cond), dim=1))
-                    logits_fake = self.discriminator(torch.cat((fake.contiguous().detach(), cond), dim=1))
+                    logits_fake = self.discriminator(torch.cat((fake.contiguous().detach(), cond), dim=1)) \
+                        if fake is not None else torch.tensor(-1.).to(logits_rec.device)
 
                 d_loss = disc_factor * self.disc_loss(logits_real, logits_rec, logits_fake)
 
                 log = {"{}/disc_loss".format(split): d_loss.clone().detach().mean(),
                        "{}/logits_real".format(split): logits_real.detach().mean(),
                        "{}/logits_rec".format(split): logits_rec.detach().mean(),
-                       "{}/logits_fake".format(split): logits_fake.detach().mean()
                        }
+                if fake is not None:
+                    log["{}/logits_fake".format(split)] = logits_fake.detach().mean()
             else:
                 d_loss = torch.tensor(0., requires_grad=True).to(reconstructions.device)
 
                 log = {"{}/disc_loss".format(split): torch.tensor(0.0),
                        "{}/logits_real".format(split): torch.tensor(0.0),
                        "{}/logits_rec".format(split): torch.tensor(0.0),
-                       "{}/logits_fake".format(split): torch.tensor(0.0)
                        }
+                if fake is not None:
+                    log["{}/logits_fake".format(split)] = torch.tensor(0.0),
 
             return d_loss, log

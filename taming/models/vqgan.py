@@ -75,7 +75,7 @@ class VQModel(pl.LightningModule):
         return dec, diff
 
     def random_forward(self, batch_size):
-        random_z = torch.rand(batch_size, *self.decoder.z_shape).to(self.device)
+        random_z = torch.rand(batch_size, *self.decoder.z_shape[1:]).to(self.device)
         fake = self.decoder(random_z)
         return fake
 
@@ -111,10 +111,10 @@ class VQModel(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         x = self.get_input(batch, self.image_key)
         xrec, qloss = self(x)
-        aeloss, log_dict_ae = self.loss(qloss, x, xrec, 0, self.global_step,
+        aeloss, log_dict_ae = self.loss(qloss, x, xrec, None, 0, self.global_step,
                                             last_layer=self.get_last_layer(), split="val")
 
-        discloss, log_dict_disc = self.loss(qloss, x, xrec, 1, self.global_step,
+        discloss, log_dict_disc = self.loss(qloss, x, xrec, None, 1, self.global_step,
                                             last_layer=self.get_last_layer(), split="val")
         rec_loss = log_dict_ae["val/rec_loss"]
         self.log("val/rec_loss", rec_loss,
