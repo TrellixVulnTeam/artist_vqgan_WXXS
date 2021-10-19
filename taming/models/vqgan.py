@@ -9,6 +9,7 @@ from taming.modules.vqvae.quantize import VectorQuantizer2 as VectorQuantizer
 from taming.modules.vqvae.quantize import GumbelQuantize
 from taming.modules.vqvae.quantize import EMAVectorQuantizer
 
+
 class VQModel(pl.LightningModule):
     def __init__(self,
                  ddconfig,
@@ -40,6 +41,8 @@ class VQModel(pl.LightningModule):
             self.register_buffer("colorize", torch.randn(3, colorize_nlabels, 1, 1))
         if monitor is not None:
             self.monitor = monitor
+
+        self.register_buffer('zs', torch.rand((36, *self.decoder.z_shape[1:])))
 
     def init_from_ckpt(self, path, ignore_keys=list()):
         sd = torch.load(path, map_location="cpu")["state_dict"]
@@ -74,9 +77,8 @@ class VQModel(pl.LightningModule):
         dec = self.decode(quant)
         return dec, diff
 
-    def random_forward(self, batch_size):
-        random_z = torch.rand(batch_size, *self.decoder.z_shape[1:]).to(self.device)
-        fake = self.decoder(random_z)
+    def forward_with_latent(self, z):
+        fake = self.decoder(z)
         return fake
 
     def get_input(self, batch, k):
@@ -89,7 +91,9 @@ class VQModel(pl.LightningModule):
     def training_step(self, batch, batch_idx, optimizer_idx):
         x = self.get_input(batch, self.image_key)
         xrec, qloss = self(x)
-        fake = self.random_forward(x.shape[0])
+
+        random_z = torch.rand(x.shape[0], *self.decoder.z_shape[1:]).to(self.device)
+        fake = self.forward_with_latent(random_z)
 
         if optimizer_idx == 0:
             # autoencode
@@ -145,13 +149,18 @@ class VQModel(pl.LightningModule):
         x = self.get_input(batch, self.image_key)
         x = x.to(self.device)
         xrec, _ = self(x)
+
+        fake = self.forward_with_latent(self.zs)
+
         if x.shape[1] > 3:
             # colorize with random projection
             assert xrec.shape[1] > 3
             x = self.to_rgb(x)
             xrec = self.to_rgb(xrec)
+            fake = self.to_rgb(fake)
         log["inputs"] = x
         log["reconstructions"] = xrec
+        log['fake'] = fake
         return log
 
     def to_rgb(self, x):

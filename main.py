@@ -233,6 +233,7 @@ class ImageLogger(Callback):
         self.batch_freq = batch_frequency
         self.max_images = max_images
         self.logger_log_images = {
+            pl.loggers.tensorboard.TensorBoardLogger: self._tensorboard,
             pl.loggers.WandbLogger: self._wandb,
             pl.loggers.TestTubeLogger: self._testtube,
         }
@@ -240,6 +241,13 @@ class ImageLogger(Callback):
         if not increase_log_steps:
             self.log_steps = [self.batch_freq]
         self.clamp = clamp
+
+    @rank_zero_only
+    def _tensorboard(self, pl_module, images, batch_idx, split):
+        for k in images:
+            grid = torchvision.utils.make_grid(images[k], nrow=6)
+            grid = (grid + 1.0) / 2.0
+            pl_module.logger.experiment.add_image(k, grid, batch_idx)
 
     @rank_zero_only
     def _wandb(self, pl_module, images, batch_idx, split):
@@ -491,8 +499,8 @@ if __name__ == "__main__":
             "image_logger": {
                 "target": "main.ImageLogger",
                 "params": {
-                    "batch_frequency": 750,
-                    "max_images": 4,
+                    "batch_frequency": 10,
+                    "max_images": 36,
                     "clamp": True
                 }
             },
