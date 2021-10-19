@@ -10,6 +10,7 @@ from pytorch_lightning import seed_everything
 from pytorch_lightning.trainer import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint, Callback, LearningRateMonitor
 from pytorch_lightning.utilities.distributed import rank_zero_only
+from pytorch_lightning.loggers import TensorBoardLogger
 
 from taming.data.utils import custom_collate
 
@@ -408,6 +409,7 @@ if __name__ == "__main__":
 
     ckptdir = os.path.join(logdir, "checkpoints")
     cfgdir = os.path.join(logdir, "configs")
+    tensorboard_dir = os.path.join(logdir, 'tensorboard')
     seed_everything(opt.seed)
 
     try:
@@ -438,33 +440,8 @@ if __name__ == "__main__":
         # trainer and callbacks
         trainer_kwargs = dict()
 
-        # default logger configs
-        # NOTE wandb < 0.10.0 interferes with shutdown
-        # wandb >= 0.10.0 seems to fix it but still interferes with pudb
-        # debugging (wrongly sized pudb ui)
-        # thus prefer testtube for now
-        default_logger_cfgs = {
-            "wandb": {
-                "target": "pytorch_lightning.loggers.WandbLogger",
-                "params": {
-                    "name": nowname,
-                    "save_dir": logdir,
-                    "offline": opt.debug,
-                    "id": nowname,
-                }
-            },
-            "testtube": {
-                "target": "pytorch_lightning.loggers.TestTubeLogger",
-                "params": {
-                    "name": "testtube",
-                    "save_dir": logdir,
-                }
-            },
-        }
-        default_logger_cfg = default_logger_cfgs["testtube"]
-        logger_cfg = lightning_config.logger or OmegaConf.create()
-        logger_cfg = OmegaConf.merge(default_logger_cfg, logger_cfg)
-        trainer_kwargs["logger"] = instantiate_from_config(logger_cfg)
+        # logger
+        trainer_kwargs['logger'] = TensorBoardLogger(save_dir=tensorboard_dir)
 
         # modelcheckpoint - use TrainResult/EvalResult(checkpoint_on=metric) to
         # specify which metric is used to determine best models
