@@ -106,7 +106,7 @@ def get_parser(**parser_kwargs):
     parser.add_argument(
         "--basedir",
         type=str,
-        default=".",
+        default="checkpoints",
         help="the base directory",
     )
 
@@ -170,16 +170,16 @@ class DataModuleFromConfig(pl.LightningDataModule):
 
     def _train_dataloader(self):
         return DataLoader(self.datasets["train"], batch_size=self.batch_size,
-                          num_workers=self.num_workers, shuffle=True, collate_fn=custom_collate)
+                          num_workers=self.num_workers, shuffle=True, collate_fn=custom_collate, pin_memory=True)
 
     def _val_dataloader(self):
         return DataLoader(self.datasets["validation"],
                           batch_size=self.batch_size,
-                          num_workers=self.num_workers, collate_fn=custom_collate)
+                          num_workers=self.num_workers, collate_fn=custom_collate, pin_memory=True)
 
     def _test_dataloader(self):
         return DataLoader(self.datasets["test"], batch_size=self.batch_size,
-                          num_workers=self.num_workers, collate_fn=custom_collate)
+                          num_workers=self.num_workers, collate_fn=custom_collate, pin_memory=True)
 
 
 class SetupCallback(Callback):
@@ -245,7 +245,7 @@ class ImageLogger(Callback):
         for k in images:
             grid = torchvision.utils.make_grid(images[k], nrow=6)
             grid = (grid + 1.0) / 2.0
-            pl_module.logger.experiment.add_image(k, grid, batch_idx)
+            pl_module.logger.experiment.add_image(f'{split}/{k}', grid, pl_module.global_step)
 
     @rank_zero_only
     def _wandb(self, pl_module, images, batch_idx, split):
@@ -288,10 +288,9 @@ class ImageLogger(Callback):
             Image.fromarray(grid).save(path)
 
     def log_img(self, pl_module, batch, batch_idx, split="train"):
-        if (self.check_frequency(batch_idx) and  # batch_idx % self.batch_freq == 0
-                hasattr(pl_module, "log_images") and
-                callable(pl_module.log_images) and
-                self.max_images > 0):
+        if not hasattr(pl_module, 'log_images') or not callable(pl_module.log_images) or self.max_images <= 0:
+            return
+        if (split == 'train' and self.check_frequency(batch_idx)) or (split == 'val' and batch_idx == 0):
             logger = type(pl_module.logger)
 
             is_train = pl_module.training
@@ -404,7 +403,7 @@ if __name__ == "__main__":
         else:
             assert os.path.isdir(opt.resume), opt.resume
             logdir = opt.resume.rstrip("/")
-            ckpt = os.path.join(logdir, "checkpoints", "last.ckpt")
+            ckpt = os.path.join(logdir, "models", "last.ckpt")
 
         opt.resume_from_checkpoint = ckpt
         base_configs = sorted(glob.glob(os.path.join(logdir, "configs/*.yaml")))
@@ -421,7 +420,7 @@ if __name__ == "__main__":
         else:
             name = ""
         nowname = now+name+opt.postfix
-        logdir = os.path.join(opt.basedir, "checkpoints", nowname)
+        logdir = os.path.join(opt.basedir, nowname)
 
     ckptdir = os.path.join(logdir, "models")
     cfgdir = os.path.join(logdir, "configs")
