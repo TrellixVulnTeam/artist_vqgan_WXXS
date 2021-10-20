@@ -1,8 +1,13 @@
 import bisect
+import copy
+import random
+
 import numpy as np
 import albumentations
 from PIL import Image
 from torch.utils.data import Dataset, ConcatDataset
+
+from taming.data.augmentations import AugmentPipe
 
 
 class ConcatDatasetWithIndex(ConcatDataset):
@@ -21,32 +26,33 @@ class ConcatDatasetWithIndex(ConcatDataset):
 
 
 class ImagePaths(Dataset):
-    def __init__(self, paths, size=None, random_crop=False, random_hflip=False, labels=None, *args):
+    def __init__(self, paths, size=None, augmentations=None, disc_augmentations=None, labels=None, *args):
         self.size = size
-        self.random_crop = random_crop
+        self.disc_data = False
+
+        augmentations = copy.deepcopy(augmentations)
+        if augmentations is None:
+            augmentations = dict()
+        self.aug_p = augmentations['p'] if 'p' in augmentations else 1.
+
+        basic_operations = dict()
+        basic_operations['rescale'] = augmentations['rescale'] if 'rescale' in augmentations else 1.
+        basic_operations['crop'] = augmentations['crop'] if 'crop' in augmentations else 'center'
+        augmentations.pop('rescale', None)
+        augmentations.pop('crop', None)
+
+        disc_augmentations = copy.deepcopy(disc_augmentations)
+        if disc_augmentations is None:
+            disc_augmentations = {}
+        self.disc_aug_p = disc_augmentations['p'] if 'p' in disc_augmentations else 0.
 
         self.labels = dict() if labels is None else labels
         self.labels["file_path_"] = paths
         self._length = len(paths)
 
-        if self.size is not None and self.size > 0:
-            transforms = list()
-            self.rescaler = albumentations.SmallestMaxSize(max_size = self.size)
-            transforms.append(self.rescaler)
-
-            if not self.random_crop:
-                self.cropper = albumentations.CenterCrop(height=self.size,width=self.size)
-            else:
-                self.cropper = albumentations.RandomCrop(height=self.size,width=self.size)
-            transforms.append(self.cropper)
-
-            if random_hflip:
-                self.hflip = albumentations.HorizontalFlip(p=0.5)
-                transforms.append(self.hflip)
-
-            self.preprocessor = albumentations.Compose(transforms)
-        else:
-            self.preprocessor = lambda **kwargs: kwargs
+        self.preprocessor_basic = AugmentPipe(self.size, basic_operations)
+        self.preprocessor_aug = AugmentPipe(self.size, augmentations)
+        self.preprocessor_disc_aug = AugmentPipe(self.size, disc_augmentations)
 
     def __len__(self):
         return self._length
@@ -56,13 +62,25 @@ class ImagePaths(Dataset):
         if not image.mode == "RGB":
             image = image.convert("RGB")
         image = np.array(image).astype(np.uint8)
-        image = self.preprocessor(image=image)["image"]
+
+        image = self.preprocessor_basic(image)
+        if random.random() < self.aug_p:
+            image = self.preprocessor_aug(image)
+
+        if self.disc_data and self.disc_aug_p > 0:
+            disc_image = copy.deepcopy(image)
+            if random.random() < self.disc_aug_p:
+                disc_image = self.preprocessor_disc_aug(disc_image)
+                disc_image = (disc_image/127.5 - 1.0).astype(np.float32)
+        else:
+            disc_image = image
+
         image = (image/127.5 - 1.0).astype(np.float32)
-        return image
+        return image, disc_image
 
     def __getitem__(self, i):
         example = dict()
-        example["image"] = self.preprocess_image(self.labels["file_path_"][i])
+        example["image"], example["disc_image"] = self.preprocess_image(self.labels["file_path_"][i])
         for k in self.labels:
             example[k] = self.labels[k][i]
         return example
@@ -74,6 +92,6 @@ class NumpyPaths(ImagePaths):
         image = np.transpose(image, (1,2,0))
         image = Image.fromarray(image, mode="RGB")
         image = np.array(image).astype(np.uint8)
-        image = self.preprocessor(image=image)["image"]
+        image = self.preprocessor_basic(image=image)["image"]
         image = (image/127.5 - 1.0).astype(np.float32)
         return image
