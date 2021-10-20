@@ -62,6 +62,8 @@ class VQLPIPSWithDiscriminator(nn.Module):
         self.discriminator_weight = disc_weight
         self.disc_conditional = disc_conditional
 
+        self.__hidden__ = nn.Linear(1, 1, bias=False)
+
     def calculate_adaptive_weight(self, nll_loss, g_loss, last_layer=None):
         if last_layer is not None:
             nll_grads = torch.autograd.grad(nll_loss, last_layer, retain_graph=True)[0]
@@ -72,7 +74,6 @@ class VQLPIPSWithDiscriminator(nn.Module):
 
         d_weight = torch.norm(nll_grads) / (torch.norm(g_grads) + 1e-4)
         d_weight = torch.clamp(d_weight, 0.0, 1e4).detach()
-        d_weight = d_weight * self.discriminator_weight
         return d_weight
 
     def forward(self, codebook_loss, inputs, reconstructions, fake, optimizer_idx,
@@ -162,7 +163,8 @@ class VQLPIPSWithDiscriminator(nn.Module):
                 d_loss = disc_factor * self.disc_loss(logits_real, logits_rec, logits_fake)
 
             else:
-                d_loss = torch.tensor(0., requires_grad=True).to(reconstructions.device)
+                d_loss = torch.zeros((1, 1)).to(reconstructions.device)
+                d_loss = d_loss + 0 * self.__hidden__(d_loss)
                 logits_real = torch.tensor(0.)
                 logits_rec = torch.tensor(0.)
                 logits_fake = torch.tensor(0.)

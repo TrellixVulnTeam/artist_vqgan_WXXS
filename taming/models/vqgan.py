@@ -133,8 +133,7 @@ class VQModel(pl.LightningModule):
                                   list(self.quant_conv.parameters())+
                                   list(self.post_quant_conv.parameters()),
                                   lr=lr, betas=(0.5, 0.9))
-        opt_disc = torch.optim.Adam(self.loss.discriminator.parameters(),
-                                    lr=lr, betas=(0.5, 0.9))
+        opt_disc = torch.optim.Adam(self.loss.parameters(), lr=lr, betas=(0.5, 0.9))
         return [opt_ae, opt_disc], []
 
     def get_last_layer(self):
@@ -403,9 +402,10 @@ class EMAVQ(VQModel):
                                            embedding_dim=embed_dim,
                                            beta=0.25,
                                            remap=remap)
+
     def configure_optimizers(self):
         lr = self.learning_rate
-        #Remove self.quantize from parameter list since it is updated via EMA
+        # Remove self.quantize from parameter list since it is updated via EMA
         opt_ae = torch.optim.Adam(list(self.encoder.parameters())+
                                   list(self.decoder.parameters())+
                                   list(self.quant_conv.parameters())+
@@ -413,4 +413,4 @@ class EMAVQ(VQModel):
                                   lr=lr, betas=(0.5, 0.9))
         opt_disc = torch.optim.Adam(self.loss.discriminator.parameters(),
                                     lr=lr, betas=(0.5, 0.9))
-        return [opt_ae, opt_disc], []                                           
+        return [opt_ae, opt_disc], []

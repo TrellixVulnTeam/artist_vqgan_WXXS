@@ -183,14 +183,13 @@ class DataModuleFromConfig(pl.LightningDataModule):
 
 
 class SetupCallback(Callback):
-    def __init__(self, resume, now, logdir, ckptdir, cfgdir, tensorboarddir, config, lightning_config):
+    def __init__(self, resume, now, logdir, ckptdir, cfgdir, config, lightning_config):
         super().__init__()
         self.resume = resume
         self.now = now
         self.logdir = logdir
         self.ckptdir = ckptdir
         self.cfgdir = cfgdir
-        self.tensorboarddir = tensorboarddir
         self.config = config
         self.lightning_config = lightning_config
 
@@ -200,7 +199,6 @@ class SetupCallback(Callback):
             os.makedirs(self.logdir, exist_ok=True)
             os.makedirs(self.ckptdir, exist_ok=True)
             os.makedirs(self.cfgdir, exist_ok=True)
-            os.makedirs(self.tensorboarddir, exist_ok=True)
 
             print("Project config")
             print(self.config.pretty())
@@ -428,6 +426,7 @@ if __name__ == "__main__":
     ckptdir = os.path.join(logdir, "models")
     cfgdir = os.path.join(logdir, "configs")
     tensorboard_dir = os.path.join(logdir, 'tensorboard')
+    os.makedirs(tensorboard_dir, exist_ok=True)
     seed_everything(opt.seed)
 
     try:
@@ -492,7 +491,6 @@ if __name__ == "__main__":
                     "logdir": logdir,
                     "ckptdir": ckptdir,
                     "cfgdir": cfgdir,
-                    "tensorboarddir": tensorboard_dir,
                     "config": config,
                     "lightning_config": lightning_config,
                 }

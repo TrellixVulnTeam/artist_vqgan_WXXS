@@ -27,7 +27,7 @@ model:
       params:
         disc_conditional: false
         disc_in_channels: 3
-        disc_start: 10000
+        disc_start: 150000
         disc_weight: 0.8
         codebook_weight: 1.0
 data:
@@ -51,3 +51,4 @@ lightning:
   trainer:
     accumulate_grad_batches: 6
     log_every_n_steps: 20
+    precision: 16
