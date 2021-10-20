@@ -117,13 +117,27 @@ class VQModel(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         x = self.get_input(batch, self.image_key)
         xrec, qloss = self(x)
-        aeloss, log_dict_ae = self.loss(qloss, x, xrec, None, 0, self.global_step,
+        if self.global_step >= self.loss.discriminator_iter_start:
+            random_z = torch.rand(x.shape[0], *self.decoder.z_shape[1:]).to(self.device) * 2. - 1.
+            fake = self.forward_with_latent(random_z)
+        else:
+            fake = None
+
+        aeloss, log_dict_ae = self.loss(qloss, x, xrec, fake, 0, self.global_step,
                                             last_layer=self.get_last_layer(), split="val")
 
-        discloss, log_dict_disc = self.loss(qloss, x, xrec, None, 1, self.global_step,
+        discloss, log_dict_disc = self.loss(qloss, x, xrec, fake, 1, self.global_step,
                                             last_layer=self.get_last_layer(), split="val")
         self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=False, on_epoch=True)
         self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=False, on_epoch=True)
+
+        return {
+            'epoch': self.current_epoch,
+            'sup': log_dict_ae['val_supervised/nll_loss'],
+            'adv_rec': log_dict_ae['val_adversarial/G/g_rec_loss'],
+            'adv_fake': log_dict_ae['val_adversarial/G/g_fake_loss'],
+            'total': log_dict_ae['val_total/total_loss'] - log_dict_ae['val_supervised/quant_loss'],
+        }
 
     def configure_optimizers(self):
         lr = self.learning_rate

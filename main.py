@@ -467,9 +467,12 @@ if __name__ == "__main__":
             "target": "pytorch_lightning.callbacks.ModelCheckpoint",
             "params": {
                 "dirpath": ckptdir,
-                "filename": "{epoch:06}",
-                "verbose": True,
+                "filename": "{epoch:03d}-{sup:.3f}-{adv_rec:.3f}-{adv_fake:.3f}-{total:.3f}",
+                "monitor": 'epoch',
+                "mode": 'max',
+                "save_top_k": 2,
                 "save_last": True,
+                "verbose": False,
             }
         }
         if hasattr(model, "monitor"):
