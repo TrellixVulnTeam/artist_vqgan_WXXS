@@ -1,3 +1,5 @@
+import copy
+
 import torch
 import torch.nn.functional as F
 import pytorch_lightning as pl
@@ -19,6 +21,7 @@ class VQModel(pl.LightningModule):
                  ckpt_path=None,
                  ignore_keys=[],
                  image_key="image",
+                 disc_image_key="disc_image",
                  colorize_nlabels=None,
                  monitor=None,
                  remap=None,
@@ -26,6 +29,7 @@ class VQModel(pl.LightningModule):
                  ):
         super().__init__()
         self.image_key = image_key
+        self.disc_image_key = disc_image_key
         self.encoder = Encoder(**ddconfig)
         self.decoder = Decoder(**ddconfig)
         self.loss = instantiate_from_config(lossconfig)
@@ -35,9 +39,8 @@ class VQModel(pl.LightningModule):
         self.post_quant_conv = torch.nn.Conv2d(embed_dim, ddconfig["z_channels"], 1)
         if ckpt_path is not None:
             self.init_from_ckpt(ckpt_path, ignore_keys=ignore_keys)
-        self.image_key = image_key
         if colorize_nlabels is not None:
-            assert type(colorize_nlabels)==int
+            assert type(colorize_nlabels) == int
             self.register_buffer("colorize", torch.randn(3, colorize_nlabels, 1, 1))
         if monitor is not None:
             self.monitor = monitor
@@ -91,26 +94,32 @@ class VQModel(pl.LightningModule):
         return x.float()
 
     def training_step(self, batch, batch_idx, optimizer_idx):
-        x = self.get_input(batch, self.image_key)
-        xrec, qloss = self(x)
+        if optimizer_idx == 0:
+            x = self.get_input(batch, self.image_key)
+            xrec, qloss = self(x)
 
-        if self.global_step >= self.loss.discriminator_iter_start:
-            random_z = torch.rand(x.shape[0], *self.decoder.z_shape[1:]).to(self.device) * 2. - 1.
-            fake = self.forward_with_latent(random_z)
-        else:
-            fake = None
+            if self.global_step >= self.loss.discriminator_iter_start:
+                random_z = torch.rand(x.shape[0], *self.decoder.z_shape[1:]).to(self.device) * 2. - 1.
+                fake = self.forward_with_latent(random_z)
+            else:
+                fake = None
+            self.real, self.reconstruction, self.fake, self.qloss = x, xrec, fake, qloss
 
         if optimizer_idx == 0:
             # autoencode
-            aeloss, log_dict_ae = self.loss(qloss, x, xrec, fake, optimizer_idx, self.global_step,
-                                            last_layer=self.get_last_layer(), split="train")
+            aeloss, log_dict_ae = \
+                self.loss(self.qloss, self.real, self.reconstruction, self.fake, optimizer_idx, self.global_step,
+                          last_layer=self.get_last_layer(), split="train")
             self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=True, on_epoch=False)
             return aeloss
 
         if optimizer_idx == 1:
             # discriminator
-            discloss, log_dict_disc = self.loss(qloss, x, xrec, fake, optimizer_idx, self.global_step,
-                                            last_layer=self.get_last_layer(), split="train")
+            disc_x = self.get_input(batch, self.disc_image_key)
+            reconstruction = self.reconstruction.detach()
+            fake = self.fake.detach() if self.fake is not None else None
+            discloss, log_dict_disc = \
+                self.loss(None, disc_x, reconstruction, fake, optimizer_idx, self.global_step, split="train")
             self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=True, on_epoch=False)
             return discloss
 
@@ -123,11 +132,9 @@ class VQModel(pl.LightningModule):
         else:
             fake = None
 
-        aeloss, log_dict_ae = self.loss(qloss, x, xrec, fake, 0, self.global_step,
-                                            last_layer=self.get_last_layer(), split="val")
-
-        discloss, log_dict_disc = self.loss(qloss, x, xrec, fake, 1, self.global_step,
-                                            last_layer=self.get_last_layer(), split="val")
+        aeloss, log_dict_ae = \
+            self.loss(qloss, x, xrec, fake, 0, self.global_step, last_layer=self.get_last_layer(), split="val")
+        discloss, log_dict_disc = self.loss(None, x, xrec, fake, 1, self.global_step, split="val")
         self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=False, on_epoch=True)
         self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=False, on_epoch=True)
 
@@ -179,6 +186,9 @@ class VQModel(pl.LightningModule):
         x = F.conv2d(x, weight=self.colorize)
         x = 2.*(x-x.min())/(x.max()-x.min()) - 1.
         return x
+
+    def adjust_disc_aug_p(self, p):
+        self.train_dataloader().dataset.adjust_disc_aug_p(p)
 
 
 class VQSegmentationModel(VQModel):
