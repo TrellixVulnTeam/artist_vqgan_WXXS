@@ -2,7 +2,6 @@ model:
   base_learning_rate: 4.5e-06
   target: taming.models.vqgan.VQModel
   params:
-    ckpt_path: /data/models/taming_transformer/wikiart/wikiart_vqgan.ckpt
     embed_dim: 256
     n_embed: 16384
     ddconfig:
@@ -39,16 +38,20 @@ data:
       target: taming.data.wikiart.WikiArtTrain
       params:
         size: 256
-        random_crop: true
-        random_hflip: true
+        augmentations:
+          rescale: 1.2
+          crop: random
+          hflip: true
+          vflip: true
+          bright_contrast:
+            p: 0.2
+            limit: [-0.1, 0.1]
     validation:
       target: taming.data.wikiart.WikiArtValidation
       params:
         size: 256
-        random_crop: true
-        random_hflip: true
 lightning:
   trainer:
     accumulate_grad_batches: 6
-    log_every_n_steps: 20
+    log_every_n_steps: 50
     precision: 16
