@@ -355,7 +355,7 @@ class ImageLogger(Callback):
 class SelfProgressBar(ProgressBar):
     def init_test_tqdm(self):
         bar = tqdm(
-            desc=f'Epoch {self.trainer.current_epoch} testing',
+            desc=f'Step {self.trainer.global_step} testing',
             position=(2 * self.process_position),
             disable=self.is_disabled,
             leave=False,

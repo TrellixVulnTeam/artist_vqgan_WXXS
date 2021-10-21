@@ -178,8 +178,9 @@ class VQModel(pl.LightningModule):
         aeloss, log_dict_ae = \
             self.loss(qloss, x, xrec, None, 0, self.global_step, last_layer=self.get_last_layer(), split="test")
         discloss, log_dict_disc = self.loss(None, x, xrec, None, 1, self.global_step, split="test")
-        self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=False, on_epoch=True)
-        self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=False, on_epoch=True)
+        if self.global_step != 0:
+            self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=False, on_epoch=True)
+            self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=False, on_epoch=True)
 
         return {
             'epoch': self.current_epoch,
@@ -198,11 +199,12 @@ class VQModel(pl.LightningModule):
             self.adjust_disc_aug_p(adjust)
             self.update_ada = False
 
-    def on_epoch_end(self):
-        self.trainer.test(verbose=False)
+    def on_epoch_start(self) -> None:
+        if self.current_epoch == 0:
+            self.trainer.test(model=self, verbose=False)
 
-    def configure_callbacks(self):
-        self.trainer.test(verbose=False)
+    def on_epoch_end(self):
+        self.trainer.test(model=self, verbose=False)
 
     def configure_optimizers(self):
         lr = self.learning_rate
