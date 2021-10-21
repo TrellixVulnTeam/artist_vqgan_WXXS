@@ -8,9 +8,10 @@ from torch.utils.data import random_split, DataLoader, Dataset
 import pytorch_lightning as pl
 from pytorch_lightning import seed_everything
 from pytorch_lightning.trainer import Trainer
-from pytorch_lightning.callbacks import ModelCheckpoint, Callback, LearningRateMonitor
+from pytorch_lightning.callbacks import ModelCheckpoint, Callback, LearningRateMonitor, ProgressBar
 from pytorch_lightning.utilities.distributed import rank_zero_only
 from pytorch_lightning.loggers import TensorBoardLogger
+from tqdm import tqdm
 
 from taming.data.utils import custom_collate
 
@@ -177,12 +178,11 @@ class DataModuleFromConfig(pl.LightningDataModule):
                           num_workers=self.num_workers, shuffle=True, collate_fn=custom_collate, pin_memory=True)
 
     def _val_dataloader(self):
-        return DataLoader(self.datasets["validation"],
-                          batch_size=self.batch_size,
+        return DataLoader(self.datasets["validation"], batch_size=self.batch_size * 18,
                           num_workers=self.num_workers, collate_fn=custom_collate, pin_memory=True)
 
     def _test_dataloader(self):
-        return DataLoader(self.datasets["test"], batch_size=self.batch_size,
+        return DataLoader(self.datasets["test"], batch_size=self.batch_size * 18,
                           num_workers=self.num_workers, collate_fn=custom_collate, pin_memory=True)
 
 
@@ -198,35 +198,38 @@ class SetupCallback(Callback):
         self.lightning_config = lightning_config
 
     def on_pretrain_routine_start(self, trainer, pl_module):
-        if trainer.global_rank == 0:
-            # Create logdirs and save configs
-            os.makedirs(self.logdir, exist_ok=True)
-            os.makedirs(self.ckptdir, exist_ok=True)
-            os.makedirs(self.cfgdir, exist_ok=True)
+        if getattr(trainer, 'get_ready', False):
+            setattr(trainer, 'get_ready', True)
+            if trainer.global_rank == 0:
 
-            print("Project config")
-            print(self.config.pretty())
-            OmegaConf.save(self.config,
-                           os.path.join(self.cfgdir, "{}-project.yaml".format(self.now)))
+                # Create logdirs and save configs
+                os.makedirs(self.logdir, exist_ok=True)
+                os.makedirs(self.ckptdir, exist_ok=True)
+                os.makedirs(self.cfgdir, exist_ok=True)
 
-            print("Lightning config")
-            print(self.lightning_config.pretty())
-            OmegaConf.save(OmegaConf.create({"lightning": self.lightning_config}),
-                           os.path.join(self.cfgdir, "{}-lightning.yaml".format(self.now)))
+                print("Project config")
+                print(self.config.pretty())
+                OmegaConf.save(self.config,
+                               os.path.join(self.cfgdir, "{}-project.yaml".format(self.now)))
 
-            OmegaConf.save(OmegaConf.merge(self.config, OmegaConf.create({"lightning": self.lightning_config})),
-                           os.path.join(self.cfgdir, "{}-all.yaml".format(self.now)))
+                print("Lightning config")
+                print(self.lightning_config.pretty())
+                OmegaConf.save(OmegaConf.create({"lightning": self.lightning_config}),
+                               os.path.join(self.cfgdir, "{}-lightning.yaml".format(self.now)))
 
-        else:
-            # ModelCheckpoint callback created log directory --- remove it
-            if not self.resume and os.path.exists(self.logdir):
-                dst, name = os.path.split(self.logdir)
-                dst = os.path.join(dst, "child_runs", name)
-                os.makedirs(os.path.split(dst)[0], exist_ok=True)
-                try:
-                    os.rename(self.logdir, dst)
-                except FileNotFoundError:
-                    pass
+                OmegaConf.save(OmegaConf.merge(self.config, OmegaConf.create({"lightning": self.lightning_config})),
+                               os.path.join(self.cfgdir, "{}-all.yaml".format(self.now)))
+
+            else:
+                # ModelCheckpoint callback created log directory --- remove it
+                if not self.resume and os.path.exists(self.logdir):
+                    dst, name = os.path.split(self.logdir)
+                    dst = os.path.join(dst, "child_runs", name)
+                    os.makedirs(os.path.split(dst)[0], exist_ok=True)
+                    try:
+                        os.rename(self.logdir, dst)
+                    except FileNotFoundError:
+                        pass
 
 
 class ImageLogger(Callback):
@@ -299,7 +302,8 @@ class ImageLogger(Callback):
     def log_img(self, pl_module, batch, batch_idx, split="train"):
         if not hasattr(pl_module, 'log_images') or not callable(pl_module.log_images) or self.max_images <= 0:
             return
-        if (split == 'train' and self.check_frequency(batch_idx)) or (split == 'val' and batch_idx == 0):
+        if (split == 'train' and self.check_frequency(batch_idx)) or (split == 'val' and batch_idx == 0) \
+                or (split == 'test' and batch_idx == 0):
             logger = type(pl_module.logger)
 
             is_train = pl_module.training
@@ -343,6 +347,22 @@ class ImageLogger(Callback):
 
     def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
         self.log_img(pl_module, batch, batch_idx, split="val")
+
+    def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
+        self.log_img(pl_module, batch, batch_idx, split="test")
+
+
+class SelfProgressBar(ProgressBar):
+    def init_test_tqdm(self):
+        bar = tqdm(
+            desc=f'Epoch {self.trainer.current_epoch} testing',
+            position=(2 * self.process_position),
+            disable=self.is_disabled,
+            leave=False,
+            dynamic_ncols=True,
+            file=sys.stdout
+        )
+        return bar
 
 
 if __name__ == "__main__":
@@ -524,6 +544,9 @@ if __name__ == "__main__":
                     #"log_momentum": True
                 }
             },
+            'progress': {
+                'target': 'main.SelfProgressBar',
+            }
         }
         callbacks_cfg = lightning_config.callbacks or OmegaConf.create()
         callbacks_cfg = OmegaConf.merge(default_callbacks_cfg, callbacks_cfg)

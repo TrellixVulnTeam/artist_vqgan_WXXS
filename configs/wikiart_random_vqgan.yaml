@@ -48,7 +48,7 @@ data:
           crop: random
           hflip:
             p: 0.5
-          vflip:
+          rotate90:
             p: 0.5
         ae_augmentations:
           fancy_pca:
@@ -75,9 +75,15 @@ data:
           shift_scale_rotate:
             p: 0.8
             rotate_limit: 90
-
     validation:
       target: taming.data.wikiart.WikiArtValidation
+      params:
+        size: 256
+        base:
+          rescale: 1.
+          crop: center
+    test:
+      target: taming.data.wikiart.NatgeoTesing
       params:
         size: 256
         base:

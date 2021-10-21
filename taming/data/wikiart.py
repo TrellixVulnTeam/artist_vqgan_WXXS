@@ -89,3 +89,14 @@ class WikiArtValidation(WikiArtBase):
         self.data = ImagePaths(paths=paths, size=size, base=base)
 
         print(f'total {len(self.data)} validation data.')
+
+
+class NatgeoTesing(WikiArtBase):
+    def __init__(self, size, base=None, *args):
+        super(NatgeoTesing, self).__init__()
+        root = '/data/datasets/photography/natgeo/'
+        paths = [os.path.join(root, fname) for fname in os.listdir(root)
+                 if os.path.splitext(fname)[1].lower() in ['.jpg', '.jpeg', '.png']]
+        self.data = ImagePaths(paths=sorted(paths), size=size, base=base)
+
+        print(f'total {len(self.data)} testing data.')

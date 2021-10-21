@@ -171,6 +171,22 @@ class VQModel(pl.LightningModule):
             'total': log_dict_ae['val_total/total_loss'] - log_dict_ae['val_supervised/quant_loss'],
         }
 
+    def test_step(self, batch, batch_idx):
+        x = self.get_input(batch, self.image_key)
+        xrec, qloss = self(x)
+
+        aeloss, log_dict_ae = \
+            self.loss(qloss, x, xrec, None, 0, self.global_step, last_layer=self.get_last_layer(), split="test")
+        discloss, log_dict_disc = self.loss(None, x, xrec, None, 1, self.global_step, split="test")
+        self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=False, on_epoch=True)
+        self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=False, on_epoch=True)
+
+        return {
+            'epoch': self.current_epoch,
+            'sup': log_dict_ae['test_supervised/nll_loss'],
+            'total': log_dict_ae['test_total/total_loss'] - log_dict_ae['test_supervised/quant_loss'],
+        }
+
     def on_after_backward(self):
         if self.global_step % self.ada_interval == 0 and self.calc_adv_loss and self.update_ada \
                 and self.ada_stats is not None:
@@ -181,6 +197,12 @@ class VQModel(pl.LightningModule):
             adjust = sign * value
             self.adjust_disc_aug_p(adjust)
             self.update_ada = False
+
+    def on_epoch_end(self):
+        self.trainer.test(verbose=False)
+
+    def configure_callbacks(self):
+        self.trainer.test(verbose=False)
 
     def configure_optimizers(self):
         lr = self.learning_rate

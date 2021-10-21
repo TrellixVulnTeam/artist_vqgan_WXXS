@@ -1,10 +1,6 @@
-import ctypes
 import numbers
-from multiprocessing import Array
 
-import numpy as np
 import albumentations
-import cv2
 
 
 class AugmentPipe:
@@ -37,10 +33,16 @@ class AugmentPipe:
             if hf_cfg is not None:
                 self.hflip = albumentations.HorizontalFlip(**hf_cfg)
                 transforms.append(self.hflip)
+
             vf_cfg = augment_types.get('vflip')
             if vf_cfg is not None:
                 self.vflip = albumentations.VerticalFlip(**vf_cfg)
                 transforms.append(self.vflip)
+
+            r90_cfg = augment_types.get('rotate90')
+            if r90_cfg is not None:
+                self.rotate90 = albumentations.RandomRotate90(**r90_cfg)
+                transforms.append(self.rotate90)
 
             f_p_cfg = augment_types.get('fancy_pca')
             if f_p_cfg is not None:
@@ -62,7 +64,7 @@ class AugmentPipe:
             s_s_r_cfg = augment_types.get('shift_scale_rotate')
             if s_s_r_cfg is not None:
                 self.shift_scale_rotate = \
-                    albumentations.ShiftScaleRotate(**s_s_r_cfg, interpolation=cv2.INTER_LINEAR)
+                    albumentations.ShiftScaleRotate(**s_s_r_cfg)
                 transforms.append(self.shift_scale_rotate)
 
             self.processor = albumentations.Compose(transforms)
