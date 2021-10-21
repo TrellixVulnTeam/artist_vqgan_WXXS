@@ -4,6 +4,9 @@ model:
   params:
     embed_dim: 256
     n_embed: 16384
+    ada_target: 0.6
+    ada_interval: 4
+    ada_kimg: 500
     ddconfig:
       double_z: false
       z_channels: 256
@@ -38,18 +41,51 @@ data:
       target: taming.data.wikiart.WikiArtTrain
       params:
         size: 256
-        augmentations:
-          rescale: 1.2
+        base:
+          rescale: [1, 1.1, 1.2]
           crop: random
-          hflip: true
-          vflip: true
-          bright_contrast:
+        augmentations:
+          p: 0.5
+          hflip:
+            p: 0.5
+          vflip:
+            p: 0.5
+          fancy_pca:
+            p: 0.4
+          color_jitter:
             p: 0.2
-            limit: [-0.1, 0.1]
+            brightness: 0.1
+            contrast: 0.1
+            saturation: 0.1
+            hue: 0.1
+        disc_augmentations:
+          p: 0.25
+          hflip:
+            p: 1.
+          vflip:
+            p: 1.
+          fancy_pca:
+            p: 0.8
+          color_jitter:
+            p: 0.4
+            brightness: 0.2
+            contrast: 0.2
+            saturation: 0.2
+            hue: 0.2
+          fog:
+            p: 0.1
+            fog_coef_upper: 0.3
+          shift_scale_rotate:
+            p: 0.4
+            rotate_limit: 90
+
     validation:
       target: taming.data.wikiart.WikiArtValidation
       params:
         size: 256
+        base:
+          rescale: 1.
+          crop: center
 lightning:
   trainer:
     accumulate_grad_batches: 6

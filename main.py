@@ -138,6 +138,10 @@ class WrappedDataset(Dataset):
         return self.data[idx]
 
 
+class SelfDataLoader(DataLoader):
+    pass
+
+
 class DataModuleFromConfig(pl.LightningDataModule):
     def __init__(self, batch_size, train=None, validation=None, test=None,
                  wrap=False, num_workers=None):
@@ -287,6 +291,10 @@ class ImageLogger(Callback):
             os.makedirs(os.path.split(path)[0], exist_ok=True)
             Image.fromarray(grid).save(path)
 
+    @rank_zero_only
+    def log_histogram(self, pl_module, histogram, batch_idx, split):
+        pl_module.logger.experiment.add_histogram(f'{split}/latent', histogram, pl_module.global_step)
+
     def log_img(self, pl_module, batch, batch_idx, split="train"):
         if not hasattr(pl_module, 'log_images') or not callable(pl_module.log_images) or self.max_images <= 0:
             return
@@ -298,7 +306,7 @@ class ImageLogger(Callback):
                 pl_module.eval()
 
             with torch.no_grad():
-                images = pl_module.log_images(batch, split=split, pl_module=pl_module)
+                images, quants = pl_module.log_images(batch, split=split, pl_module=pl_module)
 
             for k in images:
                 N = min(images[k].shape[0], self.max_images)
@@ -308,6 +316,7 @@ class ImageLogger(Callback):
                     if self.clamp:
                         images[k] = torch.clamp(images[k], -1., 1.)
 
+            self.log_histogram(pl_module, quants, pl_module.global_step, split)
             self.log_local(pl_module.logger.save_dir, split, images,
                            pl_module.global_step, pl_module.current_epoch, batch_idx)
 

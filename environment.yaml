@@ -11,7 +11,7 @@ dependencies:
   - torchvision
   - numpy
   - pip:
-    - albumentations==0.4.3
+    - albumentations==1.1.0
     - opencv-python==4.1.2.30
     - pudb==2019.2
     - imageio==2.9.0
@@ -23,4 +23,5 @@ dependencies:
     - einops==0.3.0
     - more-itertools>=8.0.0
     - transformers==4.3.1
+    - easydict
     - -e .

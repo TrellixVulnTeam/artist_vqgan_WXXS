@@ -117,7 +117,7 @@ class VQLPIPSWithDiscriminator(nn.Module):
                 try:
                     adv_weight = self.calculate_adaptive_weight(nll_loss, g_rec_loss, last_layer=last_layer)
                     adv_fake_weight = self.calculate_adaptive_weight(g_rec_loss, g_fake_loss, last_layer=last_layer) \
-                        if fake is not None else 0.
+                        if fake is not None else torch.zeros(1)
                 except RuntimeError:
                     assert not self.training
                     adv_weight, adv_fake_weight = torch.zeros(2)
@@ -153,6 +153,7 @@ class VQLPIPSWithDiscriminator(nn.Module):
 
                 d_loss, d_loss_real, d_loss_rec, d_loss_fake = self.disc_loss(logits_real, logits_rec, logits_fake)
                 d_loss *= disc_factor
+                real_sign = torch.sign(logits_real)
 
             else:
                 d_loss = torch.zeros((1, 1)).to(reconstructions.device)

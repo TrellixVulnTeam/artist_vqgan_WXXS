@@ -1,5 +1,7 @@
 import copy
+import os.path
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 import pytorch_lightning as pl
@@ -10,6 +12,7 @@ from taming.modules.diffusionmodules.model import Encoder, Decoder
 from taming.modules.vqvae.quantize import VectorQuantizer2 as VectorQuantizer
 from taming.modules.vqvae.quantize import GumbelQuantize
 from taming.modules.vqvae.quantize import EMAVectorQuantizer
+from torch_utils import training_stats, misc
 
 
 class VQModel(pl.LightningModule):
@@ -26,10 +29,21 @@ class VQModel(pl.LightningModule):
                  monitor=None,
                  remap=None,
                  sane_index_shape=False,  # tell vector quantizer to return indices as bhw
+                 ada_target=0.6,
+                 ada_interval=4,
+                 ada_kimg=500,
                  ):
         super().__init__()
         self.image_key = image_key
         self.disc_image_key = disc_image_key
+        self.calc_adv_loss = False
+        self.update_ada = False
+        self.ada_target = ada_target
+        self.ada_interval = ada_interval
+        self.ada_kimg = ada_kimg
+        self.ada_stats_regex = 'Loss/D/sign/logits_real'
+        self.ada_stats = training_stats.Collector(regex=self.ada_stats_regex) \
+            if ada_target is not None else None
         self.encoder = Encoder(**ddconfig)
         self.decoder = Decoder(**ddconfig)
         self.loss = instantiate_from_config(lossconfig)
@@ -48,7 +62,6 @@ class VQModel(pl.LightningModule):
         random_latent = torch.rand((36, *self.decoder.z_shape[1:]))
         random_latent = random_latent * 2. - 1.
         self.register_buffer('zs', random_latent)
-        self.z_scale = 6.65
 
     def init_from_ckpt(self, path, ignore_keys=list()):
         sd = torch.load(path, map_location="cpu")["state_dict"]
@@ -77,13 +90,15 @@ class VQModel(pl.LightningModule):
         dec = self.decode(quant_b)
         return dec
 
-    def forward(self, input):
+    def forward(self, input, return_quant=False):
         quant, diff, _ = self.encode(input)
-        dec = self.decode(torch.tanh(quant) * self.z_scale)
-        return dec, diff
+        dec = self.decode(torch.tanh(quant))
+        if not return_quant:
+            return dec, diff
+        return dec, quant, diff
 
     def forward_with_latent(self, z):
-        fake = self.decoder(z * self.z_scale)
+        fake = self.decoder(z)
         return fake
 
     def get_input(self, batch, k):
@@ -93,12 +108,18 @@ class VQModel(pl.LightningModule):
         x = x.permute(0, 3, 1, 2).to(memory_format=torch.contiguous_format)
         return x.float()
 
+    def on_train_batch_start(self, batch, batch_idx, dataloader_idx):
+        if self.global_step >= self.loss.discriminator_iter_start:
+            self.calc_adv_loss = True
+            self.update_ada = True
+            self.train_dataloader().dataset.data.prepare_disc_data(True)
+
     def training_step(self, batch, batch_idx, optimizer_idx):
         if optimizer_idx == 0:
             x = self.get_input(batch, self.image_key)
             xrec, qloss = self(x)
 
-            if self.global_step >= self.loss.discriminator_iter_start:
+            if self.calc_adv_loss:
                 random_z = torch.rand(x.shape[0], *self.decoder.z_shape[1:]).to(self.device) * 2. - 1.
                 fake = self.forward_with_latent(random_z)
             else:
@@ -120,7 +141,10 @@ class VQModel(pl.LightningModule):
             fake = self.fake.detach() if self.fake is not None else None
             discloss, log_dict_disc = \
                 self.loss(None, disc_x, reconstruction, fake, optimizer_idx, self.global_step, split="train")
+            log_dict_disc.update({'ada/aug_prob': self.get_disc_aug_p()})
             self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=True, on_epoch=False)
+            if self.calc_adv_loss:
+                training_stats.report(self.ada_stats_regex, 1 - log_dict_disc['train_adversarial/D/disc_loss_real'])
             return discloss
 
     def validation_step(self, batch, batch_idx):
@@ -146,6 +170,17 @@ class VQModel(pl.LightningModule):
             'total': log_dict_ae['val_total/total_loss'] - log_dict_ae['val_supervised/quant_loss'],
         }
 
+    def on_after_backward(self):
+        if self.global_step % self.ada_interval == 0 and self.calc_adv_loss and self.update_ada \
+                and self.ada_stats is not None:
+            self.ada_stats.update()
+            sign = np.sign(self.ada_stats[self.ada_stats_regex] - self.ada_target)
+            value = self.train_dataloader().batch_size * self.trainer.accumulate_grad_batches * self.ada_interval / (
+                        self.ada_kimg * 1000)
+            adjust = sign * value
+            self.adjust_disc_aug_p(adjust)
+            self.update_ada = False
+
     def configure_optimizers(self):
         lr = self.learning_rate
         opt_ae = torch.optim.Adam(list(self.encoder.parameters())+
@@ -164,7 +199,7 @@ class VQModel(pl.LightningModule):
         log = dict()
         x = self.get_input(batch, self.image_key)
         x = x.to(self.device)
-        xrec, _ = self(x)
+        xrec, quant, _ = self(x, True)
 
         fake = self.forward_with_latent(self.zs)
 
@@ -177,7 +212,7 @@ class VQModel(pl.LightningModule):
         log["inputs"] = x
         log["reconstructions"] = xrec
         log['fake'] = fake
-        return log
+        return log, quant
 
     def to_rgb(self, x):
         assert self.image_key == "segmentation"
@@ -187,8 +222,11 @@ class VQModel(pl.LightningModule):
         x = 2.*(x-x.min())/(x.max()-x.min()) - 1.
         return x
 
-    def adjust_disc_aug_p(self, p):
-        self.train_dataloader().dataset.adjust_disc_aug_p(p)
+    def adjust_disc_aug_p(self, adjust):
+        self.train_dataloader().dataset.data.adjust_disc_aug_p(adjust)
+
+    def get_disc_aug_p(self):
+        return torch.tensor(self.train_dataloader().dataset.data.disc_aug_p())
 
 
 class VQSegmentationModel(VQModel):

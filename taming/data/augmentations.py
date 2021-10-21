@@ -1,4 +1,10 @@
+import ctypes
+import numbers
+from multiprocessing import Array
+
+import numpy as np
 import albumentations
+import cv2
 
 
 class AugmentPipe:
@@ -11,8 +17,10 @@ class AugmentPipe:
             transforms = list()
 
             if augment_types.get('rescale') is not None:
-                assert augment_types['rescale'] >= 1.
-                rescale_size = augment_types['rescale'] * self.size
+                if isinstance(augment_types['rescale'], numbers.Number):
+                    rescale_size = int(augment_types['rescale'] * self.size)
+                else:
+                    rescale_size = [int(s * self.size) for s in augment_types['rescale']]
                 self.rescaler = albumentations.SmallestMaxSize(max_size=rescale_size)
                 transforms.append(self.rescaler)
 
@@ -25,22 +33,43 @@ class AugmentPipe:
                     self.cropper = albumentations.RandomCrop(height=self.size, width=self.size)
                 transforms.append(self.cropper)
 
-            if augment_types.get('hflip'):
-                self.hflip = albumentations.HorizontalFlip(p=0.5)
+            hf_cfg = augment_types.get('hflip')
+            if hf_cfg is not None:
+                self.hflip = albumentations.HorizontalFlip(**hf_cfg)
                 transforms.append(self.hflip)
-            if augment_types.get('vflip'):
-                self.vflip = albumentations.VerticalFlip(p=0.5)
+            vf_cfg = augment_types.get('vflip')
+            if vf_cfg is not None:
+                self.vflip = albumentations.VerticalFlip(**vf_cfg)
                 transforms.append(self.vflip)
 
-            if augment_types.get('bright_contrast') is not None:
-                p = augment_types['bright_contrast']['p']
-                limit = tuple(augment_types['bright_contrast']['limit'])
-                assert 0 <= p <= 1
-                self.bright_contrast = \
-                    albumentations.RandomBrightnessContrast(brightness_limit=limit, contrast_limit=limit, p=p)
-                transforms.append(self.bright_contrast)
+            f_p_cfg = augment_types.get('fancy_pca')
+            if f_p_cfg is not None:
+                self.fancy_pca = albumentations.FancyPCA(**f_p_cfg)
+                transforms.append(self.fancy_pca)
+
+            c_j_cfg = augment_types.get('color_jitter')
+            if c_j_cfg is not None:
+                self.color_jitter = \
+                    albumentations.ColorJitter(**c_j_cfg)
+                transforms.append(self.color_jitter)
+
+            f_cfg = augment_types.get('fog')
+            if f_cfg is not None:
+                self.fog = \
+                    albumentations.RandomFog(**f_cfg)
+                transforms.append(self.fog)
+
+            s_s_r_cfg = augment_types.get('shift_scale_rotate')
+            if s_s_r_cfg is not None:
+                self.shift_scale_rotate = \
+                    albumentations.ShiftScaleRotate(**s_s_r_cfg, interpolation=cv2.INTER_LINEAR)
+                transforms.append(self.shift_scale_rotate)
 
             self.processor = albumentations.Compose(transforms)
+            self.origin_ps = [trans.p for trans in self.processor]
 
-    def __call__(self, image):
+    def __call__(self, image, adaptive_p=1.):
+        if adaptive_p < 1.:
+            for i, trans in enumerate(self.processor):
+                trans.p = self.origin_ps[i] * adaptive_p
         return self.processor(image=image)['image']
