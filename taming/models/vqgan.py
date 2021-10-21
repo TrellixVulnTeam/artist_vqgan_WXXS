@@ -141,7 +141,8 @@ class VQModel(pl.LightningModule):
             fake = self.fake.detach() if self.fake is not None else None
             discloss, log_dict_disc = \
                 self.loss(None, disc_x, reconstruction, fake, optimizer_idx, self.global_step, split="train")
-            log_dict_disc.update({'ada/aug_prob': self.get_disc_aug_p()})
+            if self.calc_adv_loss:
+                log_dict_disc.update({'ada/aug_prob': self.get_disc_aug_p()})
             self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=True, on_epoch=False)
             if self.calc_adv_loss:
                 training_stats.report(self.ada_stats_regex, 1 - log_dict_disc['train_adversarial/D/disc_loss_real'])
@@ -165,8 +166,8 @@ class VQModel(pl.LightningModule):
         return {
             'epoch': self.current_epoch,
             'sup': log_dict_ae['val_supervised/nll_loss'],
-            'adv_rec': log_dict_ae['val_adversarial/G/g_rec_loss'],
-            'adv_fake': log_dict_ae['val_adversarial/G/g_fake_loss'],
+            'adv_rec': log_dict_ae.get('val_adversarial/G/g_rec_loss', 0.),
+            'adv_fake': log_dict_ae.get('val_adversarial/G/g_fake_loss', 0.),
             'total': log_dict_ae['val_total/total_loss'] - log_dict_ae['val_supervised/quant_loss'],
         }
 

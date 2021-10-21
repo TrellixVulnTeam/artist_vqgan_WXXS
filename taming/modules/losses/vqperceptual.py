@@ -92,12 +92,6 @@ class VQLPIPSWithDiscriminator(nn.Module):
             nll_loss = rec_loss + self.perceptual_weight * p_loss
 
             loss = nll_loss + self.codebook_weight * codebook_loss
-            log = {"{}_supervised/quant_loss".format(split): codebook_loss.detach(),
-                   "{}_supervised/nll_loss".format(split): nll_loss.detach(),
-                   "{}_supervised/rec_loss".format(split): rec_loss.detach(),
-                   "{}_supervised/p_loss".format(split): p_loss.detach(),
-                   "{}_adversarial/weight/disc_factor".format(split): torch.tensor(disc_factor)
-                   }
 
             # the GAN part
             if disc_factor > 0:
@@ -128,13 +122,21 @@ class VQLPIPSWithDiscriminator(nn.Module):
                 adv_weight, adv_fake_weight, g_rec_loss, g_fake_loss = torch.zeros(4)
 
             loss = loss.mean()
-            log.update({
-                "{}_adversarial/weight/adv_weight".format(split): adv_weight.detach(),
-                "{}_adversarial/weight/d_fake_weight".format(split): adv_fake_weight.detach(),
-                "{}_adversarial/G/g_rec_loss".format(split): g_rec_loss.detach(),
-                "{}_adversarial/G/g_fake_loss".format(split): g_fake_loss.detach(),
+            log = {
+                "{}_supervised/quant_loss".format(split): codebook_loss.detach(),
+                "{}_supervised/nll_loss".format(split): nll_loss.detach(),
+                "{}_supervised/rec_loss".format(split): rec_loss.detach(),
+                "{}_supervised/p_loss".format(split): p_loss.detach(),
                 "{}_total/total_loss".format(split): loss.clone().detach().mean(),
-            })
+            }
+            if fake is not None:
+                log.update({
+                    "{}_adversarial/weight/disc_factor".format(split): torch.tensor(disc_factor),
+                    "{}_adversarial/weight/adv_weight".format(split): adv_weight.detach(),
+                    "{}_adversarial/weight/d_fake_weight".format(split): adv_fake_weight.detach(),
+                    "{}_adversarial/G/g_rec_loss".format(split): g_rec_loss.detach(),
+                    "{}_adversarial/G/g_fake_loss".format(split): g_fake_loss.detach(),
+                })
             return loss, log
 
         if optimizer_idx == 1:
@@ -153,16 +155,16 @@ class VQLPIPSWithDiscriminator(nn.Module):
 
                 d_loss, d_loss_real, d_loss_rec, d_loss_fake = self.disc_loss(logits_real, logits_rec, logits_fake)
                 d_loss *= disc_factor
-                real_sign = torch.sign(logits_real)
 
             else:
                 d_loss = torch.zeros((1, 1)).to(reconstructions.device)
                 d_loss = d_loss + 0 * self.__hidden__(d_loss)  # let d_loss have grad_fn when using mixing precision
                 d_loss_real, d_loss_rec, d_loss_fake = torch.zeros(3)
 
-            log = {"{}_adversarial/D/disc_loss".format(split): d_loss.clone().detach(),
-                   "{}_adversarial/D/disc_loss_real".format(split): d_loss_real.detach(),
-                   "{}_adversarial/D/disc_loss_fake".format(split): d_loss_fake.detach(),
-                   "{}_adversarial/D/disc_loss_rec".format(split): d_loss_rec.detach(),
-                   }
+            log = {
+                "{}_adversarial/D/disc_loss".format(split): d_loss.clone().detach(),
+                "{}_adversarial/D/disc_loss_real".format(split): d_loss_real.detach(),
+                "{}_adversarial/D/disc_loss_fake".format(split): d_loss_fake.detach(),
+                "{}_adversarial/D/disc_loss_rec".format(split): d_loss_rec.detach(),
+            } if fake is not None else dict()
             return d_loss, log
