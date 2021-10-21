@@ -239,7 +239,7 @@ class ImageLogger(Callback):
             pl.loggers.WandbLogger: self._wandb,
             pl.loggers.TestTubeLogger: self._testtube,
         }
-        self.log_steps = [2 ** n for n in range(8, int(np.log2(self.batch_freq)) + 1)]
+        self.log_steps = [2 ** n for n in range(int(np.log2(self.batch_freq)) + 1)]
         if not increase_log_steps:
             self.log_steps = [self.batch_freq]
         self.clamp = clamp
@@ -294,7 +294,7 @@ class ImageLogger(Callback):
     @rank_zero_only
     def log_histogram(self, pl_module, histogram, batch_idx, split):
         pl_module.logger.experiment.add_histogram(f'{split}/latent', histogram, pl_module.global_step)
-        pl_module.logger.experiment.add_histogram(f'{split}/tanh_latent', torch.tanh(histogram), pl_module.global_step)
+        pl_module.logger.experiment.add_histogram(f'{split}/tanh_latent', torch.tanh(histogram * .5), pl_module.global_step)
 
     def log_img(self, pl_module, batch, batch_idx, split="train"):
         if not hasattr(pl_module, 'log_images') or not callable(pl_module.log_images) or self.max_images <= 0:
@@ -307,7 +307,9 @@ class ImageLogger(Callback):
                 pl_module.eval()
 
             with torch.no_grad():
-                images, quants = pl_module.log_images(batch, split=split, pl_module=pl_module)
+                log_real = split == 'train' and pl_module.calc_adv_loss
+                log_fake = split == 'train'
+                images, quants = pl_module.log_images(batch, log_real=log_real, log_fake=log_fake)
 
             for k in images:
                 N = min(images[k].shape[0], self.max_images)

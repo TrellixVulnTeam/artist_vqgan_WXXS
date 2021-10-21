@@ -92,7 +92,7 @@ class VQModel(pl.LightningModule):
 
     def forward(self, input, return_quant=False):
         quant, diff, _ = self.encode(input)
-        dec = self.decode(torch.tanh(quant))
+        dec = self.decode(torch.tanh(quant * .5))
         if not return_quant:
             return dec, diff
         return dec, quant, diff
@@ -196,23 +196,32 @@ class VQModel(pl.LightningModule):
     def get_last_layer(self):
         return self.decoder.conv_out.weight
 
-    def log_images(self, batch, **kwargs):
-        log = dict()
+    def log_images(self, batch, log_real=False, log_fake=False, **kwargs):
         x = self.get_input(batch, self.image_key)
         x = x.to(self.device)
         xrec, quant, _ = self(x, True)
-
-        fake = self.forward_with_latent(self.zs)
-
         if x.shape[1] > 3:
             # colorize with random projection
             assert xrec.shape[1] > 3
             x = self.to_rgb(x)
             xrec = self.to_rgb(xrec)
-            fake = self.to_rgb(fake)
-        log["inputs"] = x
-        log["reconstructions"] = xrec
-        log['fake'] = fake
+
+        log = {
+            'inputs': x,
+            'reconstructions': xrec,
+        }
+
+        if log_real:
+            real = self.get_input(batch, self.disc_image_key)
+            if real.shape[1] > 3:
+                real = self.to_rgb(real)
+            log['real'] = real
+        if log_fake:
+            fake = self.forward_with_latent(self.zs)
+            if fake.shape[1] > 3:
+                fake = self.to_rgb(fake)
+            log['fake'] = fake
+
         return log, quant
 
     def to_rgb(self, x):

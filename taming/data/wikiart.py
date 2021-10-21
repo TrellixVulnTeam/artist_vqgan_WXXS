@@ -68,14 +68,14 @@ class WikiArtBase(Dataset):
 
 
 class WikiArtTrain(WikiArtBase):
-    def __init__(self, size, base=None, augmentations=None, disc_augmentations=None, *args):
+    def __init__(self, size, base=None, ae_augmentations=None, disc_augmentations=None, *args):
         super().__init__()
         root = "/data/datasets/art/wiki-art/"
         relpaths = get_all_images(root)['train']
         paths = [os.path.join(root, relpath) for relpath in relpaths]
         self.data = \
             ImagePaths(paths=paths, size=size, base=base,
-                       augmentations=augmentations, disc_augmentations=disc_augmentations)
+                       ae_augmentations=ae_augmentations, disc_augmentations=disc_augmentations)
 
         print(f'total {len(self.data)} training data.')
 

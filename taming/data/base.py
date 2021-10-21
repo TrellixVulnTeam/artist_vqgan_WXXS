@@ -26,14 +26,14 @@ class ConcatDatasetWithIndex(ConcatDataset):
 
 
 class ImagePaths(Dataset):
-    def __init__(self, paths, size=None, base=None, augmentations=None, disc_augmentations=None, labels=None, *args):
+    def __init__(self, paths, size=None, base=None, ae_augmentations=None, disc_augmentations=None, labels=None, *args):
         self.size = size
 
         if base is None:
             base = dict()
         base['p'] = 1.
-        if augmentations is None:
-            augmentations = dict()
+        if ae_augmentations is None:
+            ae_augmentations = dict()
         if disc_augmentations is None:
             disc_augmentations = {}
 
@@ -42,7 +42,7 @@ class ImagePaths(Dataset):
         self._length = len(paths)
 
         self.preprocessor_basic = AugmentPipe(self.size, base)
-        self.preprocessor_aug = AugmentPipe(self.size, augmentations)
+        self.preprocessor_ae_aug = AugmentPipe(self.size, ae_augmentations)
         self.preprocessor_disc_aug = AugmentPipe(self.size, disc_augmentations)
 
         self._prepare_disc_data = np.ctypeslib.as_array(Array(ctypes.c_bool, [False]).get_obj())
@@ -59,7 +59,7 @@ class ImagePaths(Dataset):
         image = np.array(image).astype(np.uint8)
 
         image = self.preprocessor_basic(image)
-        image_g = self.preprocessor_aug(image)
+        image_g = self.preprocessor_ae_aug(image)
         if self.prepare_disc_data():
             image_d = self.preprocessor_disc_aug(image, self.disc_aug_p())
         else:
