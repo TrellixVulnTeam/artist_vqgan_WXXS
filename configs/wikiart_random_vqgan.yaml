@@ -38,7 +38,7 @@ data:
   target: main.DataModuleFromConfig
   params:
     batch_size: 2
-    num_workers: 16
+    num_workers: 12
     train:
       target: taming.data.wikiart.WikiArtTrain
       params:

@@ -199,12 +199,12 @@ class VQModel(pl.LightningModule):
             self.adjust_disc_aug_p(adjust)
             self.update_ada = False
 
-    def on_epoch_start(self) -> None:
-        if self.current_epoch == 0:
-            self.trainer.test(model=self, verbose=False)
+    # def on_epoch_start(self) -> None:
+    #     if self.current_epoch == 0:
+    #         self.trainer.test(model=self, verbose=False)
 
-    def on_epoch_end(self):
-        self.trainer.test(model=self, verbose=False)
+    # def on_epoch_end(self):
+    #     self.trainer.test(model=self, verbose=False)
 
     def configure_optimizers(self):
         lr = self.learning_rate

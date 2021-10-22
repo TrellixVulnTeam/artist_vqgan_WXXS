@@ -252,7 +252,7 @@ class ImageLogger(Callback):
         for k in images:
             grid = torchvision.utils.make_grid(images[k], nrow=6)
             grid = (grid + 1.0) / 2.0
-            pl_module.logger.experiment.add_image(f'{split}/{k}', grid, pl_module.global_step)
+            pl_module.logger.experiment.add_image(f'{split}/{k}', grid.detach().cpu(), pl_module.global_step)
 
     @rank_zero_only
     def _wandb(self, pl_module, images, batch_idx, split):
@@ -296,14 +296,15 @@ class ImageLogger(Callback):
 
     @rank_zero_only
     def log_histogram(self, pl_module, histogram, batch_idx, split):
-        pl_module.logger.experiment.add_histogram(f'{split}/latent', histogram, pl_module.global_step)
-        pl_module.logger.experiment.add_histogram(f'{split}/tanh_latent', torch.tanh(histogram * .5), pl_module.global_step)
+        pl_module.logger.experiment.add_histogram(f'{split}/latent', histogram.detach().cpu(), pl_module.global_step)
+        pl_module.logger.experiment.add_histogram(f'{split}/tanh_latent', torch.tanh(histogram * .5).detach().cpu(),
+                                                  pl_module.global_step)
 
     def log_img(self, pl_module, batch, batch_idx, split="train"):
         if not hasattr(pl_module, 'log_images') or not callable(pl_module.log_images) or self.max_images <= 0:
             return
-        if (split == 'train' and self.check_frequency(batch_idx)) or (split == 'val' and batch_idx == 0) \
-                or (split == 'test' and batch_idx == 0):
+        if (split == 'train' and self.check_frequency(pl_module.current_epoch, batch_idx)) \
+                or (split == 'val' and batch_idx == 0) or (split == 'test' and batch_idx == 0):
             logger = type(pl_module.logger)
 
             is_train = pl_module.training
@@ -333,8 +334,8 @@ class ImageLogger(Callback):
             if is_train:
                 pl_module.train()
 
-    def check_frequency(self, batch_idx):
-        if (batch_idx % self.batch_freq) == 0 or (batch_idx in self.log_steps):
+    def check_frequency(self, epoch_idx, batch_idx):
+        if (batch_idx % self.batch_freq) == 0 or (epoch_idx == 0 and batch_idx in self.log_steps):
             try:
                 self.log_steps.pop(0)
             except IndexError:
@@ -429,7 +430,7 @@ if __name__ == "__main__":
             raise ValueError("Cannot find {}".format(opt.resume))
         if os.path.isfile(opt.resume):
             paths = opt.resume.split("/")
-            idx = len(paths)-paths[::-1].index("logs")+1
+            idx = -2
             logdir = "/".join(paths[:idx])
             ckpt = opt.resume
         else:
@@ -441,7 +442,7 @@ if __name__ == "__main__":
         base_configs = sorted(glob.glob(os.path.join(logdir, "configs/*.yaml")))
         opt.base = base_configs+opt.base
         _tmp = logdir.split("/")
-        nowname = _tmp[_tmp.index("logs")+1]
+        nowname = _tmp[-1]
     else:
         if opt.name:
             name = "_"+opt.name
@@ -458,7 +459,10 @@ if __name__ == "__main__":
     cfgdir = os.path.join(logdir, "configs")
     tensorboard_dir = os.path.join(logdir, 'tensorboard')
     os.makedirs(tensorboard_dir, exist_ok=True)
-    seed_everything(opt.seed)
+    if not opt.resume:
+        seed_everything(opt.seed)
+    else:
+        seed_everything(opt.seed * 10)
 
     try:
         # init and save configs
@@ -501,7 +505,7 @@ if __name__ == "__main__":
                 "filename": "{epoch:03d}-{sup:.3f}-{adv_rec:.3f}-{adv_fake:.3f}-{total:.3f}",
                 "monitor": 'epoch',
                 "mode": 'max',
-                "save_top_k": 2,
+                "save_top_k": 100,
                 "save_last": True,
                 "verbose": False,
             }
