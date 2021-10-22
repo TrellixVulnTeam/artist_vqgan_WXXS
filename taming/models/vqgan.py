@@ -59,7 +59,7 @@ class VQModel(pl.LightningModule):
         if monitor is not None:
             self.monitor = monitor
 
-        random_latent = torch.rand((36, *self.decoder.z_shape[1:]))
+        random_latent = torch.randn((36, *self.decoder.z_shape[1:]))
         random_latent = random_latent * 2. - 1.
         self.register_buffer('zs', random_latent)
 
@@ -120,7 +120,7 @@ class VQModel(pl.LightningModule):
             xrec, qloss = self(x)
 
             if self.calc_adv_loss:
-                random_z = torch.rand(x.shape[0], *self.decoder.z_shape[1:]).to(self.device) * 2. - 1.
+                random_z = torch.randn_like(self.vs[:x.shape[0]]) * 2. - 1.
                 fake = self.forward_with_latent(random_z)
             else:
                 fake = None

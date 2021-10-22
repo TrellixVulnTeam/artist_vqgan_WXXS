@@ -1,4 +1,6 @@
 import argparse, os, sys, datetime, glob, importlib
+import copy
+
 from omegaconf import OmegaConf
 import numpy as np
 from PIL import Image
@@ -462,7 +464,7 @@ if __name__ == "__main__":
     if not opt.resume:
         seed_everything(opt.seed)
     else:
-        seed_everything(opt.seed * 10)
+        seed_everything(opt.seed)
 
     try:
         # init and save configs
