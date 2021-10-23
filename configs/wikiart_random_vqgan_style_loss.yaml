@@ -1,0 +1,97 @@
+model:
+  base_learning_rate: 4.5e-06
+  target: taming.models.vqgan.VQModel
+  params:
+    embed_dim: 256
+    n_embed: 16384
+    ada_target: 0.6
+    ada_interval: 4
+    ada_kimg: 500
+    ddconfig:
+      double_z: false
+      z_channels: 256
+      resolution: 256
+      in_channels: 3
+      out_ch: 3
+      ch: 128
+      ch_mult:
+      - 1
+      - 1
+      - 2
+      - 2
+      - 4
+      num_res_blocks: 2
+      attn_resolutions:
+      - 16
+      dropout: 0.0
+    lossconfig:
+      target: taming.modules.losses.vqperceptual.VQLPIPSWithDiscriminator
+      params:
+        pixelloss_weight: 1.0
+        codebook_weight: 1.0
+        perceptual_weight: 1.0
+        style_weight: 0.7
+        disc_conditional: false
+        disc_in_channels: 3
+        disc_start: 170000
+        disc_weight: 0.8
+data:
+  target: main.DataModuleFromConfig
+  params:
+    batch_size: 2
+    num_workers: 12
+    train:
+      target: taming.data.wikiart.WikiArtTrain
+      params:
+        size: 256
+        base:
+          rescale: [1, 1.1, 1.2]
+          crop: random
+          hflip:
+            p: 0.5
+          rotate90:
+            p: 0.5
+        ae_augmentations:
+          fancy_pca:
+            p: 0.2
+          color_jitter:
+            p: 0.2
+            brightness: 0.1
+            contrast: 0.1
+            saturation: 0.1
+            hue: 0.1
+        disc_augmentations:
+          p: 0.25
+          fancy_pca:
+            p: 0.5
+          color_jitter:
+            p: 0.9
+            brightness: 0.2
+            contrast: 0.2
+            saturation: 0.2
+            hue: 0.1
+          fog:
+            p: 0.3
+            fog_coef_upper: 0.5
+          shift_scale_rotate:
+            p: 0.8
+            rotate_limit: 90
+    validation:
+      target: taming.data.wikiart.WikiArtValidation
+      params:
+        size: 256
+        base:
+          rescale: 1.
+          crop: center
+    test:
+      target: taming.data.wikiart.NatgeoTesing
+      params:
+        size: 256
+        base:
+          rescale: 1.
+          crop: center
+lightning:
+  trainer:
+    accumulate_grad_batches: 6
+    log_every_n_steps: 50
+    precision: 16

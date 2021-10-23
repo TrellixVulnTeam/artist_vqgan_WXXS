@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from taming.modules.losses.lpips import LPIPS
+from taming.modules.losses.lpips import LPIPS, LPIPSWithStyle
 from taming.modules.discriminator.model import NLayerDiscriminator, weights_init
 
 
@@ -36,14 +36,18 @@ def vanilla_d_loss(logits_real, logits_rec, logits_fake):
 class VQLPIPSWithDiscriminator(nn.Module):
     def __init__(self, disc_start, codebook_weight=1.0, pixelloss_weight=1.0,
                  disc_num_layers=3, disc_in_channels=3, disc_factor=1.0, disc_weight=1.0,
-                 perceptual_weight=1.0, use_actnorm=False, disc_conditional=False,
+                 perceptual_weight=1.0, style_weight=0., use_actnorm=False, disc_conditional=False,
                  disc_ndf=64, disc_loss="hinge"):
         super().__init__()
         assert disc_loss in ["hinge", "vanilla"]
         self.codebook_weight = codebook_weight
         self.pixel_weight = pixelloss_weight
-        self.perceptual_loss = LPIPS().eval().requires_grad_(False)
         self.perceptual_weight = perceptual_weight
+        self.style_weight = style_weight
+        if self.style_weight > 0:
+            self.perceptual_loss = LPIPSWithStyle().eval().requires_grad_(False)
+        else:
+            self.perceptual_loss = LPIPS().eval().requires_grad_(False)
 
         self.discriminator = NLayerDiscriminator(input_nc=disc_in_channels,
                                                  n_layers=disc_num_layers,
@@ -88,8 +92,14 @@ class VQLPIPSWithDiscriminator(nn.Module):
         if optimizer_idx == 0:
             # generator update
             rec_loss = torch.abs(inputs - reconstructions).mean()
-            p_loss = self.perceptual_loss(inputs, reconstructions)
-            nll_loss = self.pixel_weight * rec_loss + self.perceptual_weight * p_loss
+            nll_loss = self.pixel_weight * rec_loss
+
+            if self.style_weight > 0:
+                p_loss, s_loss = self.perceptual_loss(inputs, reconstructions)
+                nll_loss = self.perceptual_weight * (p_loss + self.style_weight * s_loss)
+            else:
+                p_loss = self.perceptual_loss(inputs, reconstructions)
+                nll_loss += self.perceptual_weight * p_loss
 
             loss = nll_loss + self.codebook_weight * codebook_loss
 
@@ -129,6 +139,8 @@ class VQLPIPSWithDiscriminator(nn.Module):
                 "{}_supervised/p_loss".format(split): p_loss.detach(),
                 "{}_total/total_loss".format(split): loss.clone().detach().mean(),
             }
+            if self.style_weight > 0:
+                log.update({"{}_supervised/style_loss".format(split): s_loss.detach()})
             if fake is not None:
                 log.update({
                     "{}_adversarial/weight/disc_factor".format(split): torch.tensor(disc_factor),

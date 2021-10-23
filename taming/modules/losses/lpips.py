@@ -38,20 +38,61 @@ class LPIPS(nn.Module):
         model.load_state_dict(torch.load(ckpt, map_location=torch.device("cpu")), strict=False)
         return model
 
-    def forward(self, input, target):
-        in0_input, in1_input = (self.scaling_layer(input), self.scaling_layer(target))
-        outs0, outs1 = self.net(in0_input), self.net(in1_input)
-        feats0, feats1, diffs = {}, {}, {}
-        lins = [self.lin0, self.lin1, self.lin2, self.lin3, self.lin4]
+    def forward(self, content_input, target, return_feats=False):
+        input_c, input_t = self.scaling_layer(content_input), self.scaling_layer(target)
+        outs_c, outs_t = self.net(input_c), self.net(input_t)
+        feats_c, feats_t, diffs = list(), list(), list()
         for kk in range(len(self.chns)):
-            feats0[kk], feats1[kk] = normalize_tensor(outs0[kk]), normalize_tensor(outs1[kk])
-            diffs[kk] = (feats0[kk] - feats1[kk]) ** 2
+            feats_c.append(normalize_tensor(outs_c[kk]))
+            feats_t.append(normalize_tensor(outs_t[kk]))
+            diffs.append((feats_c[-1] - feats_t[-1]) ** 2)
 
+        lins = [self.lin0, self.lin1, self.lin2, self.lin3, self.lin4]
         res = [spatial_average(lins[kk].model(diffs[kk]), keepdim=True) for kk in range(len(self.chns))]
         val = res[0]
         for l in range(1, len(self.chns)):
             val += res[l]
+
+        if return_feats:
+            return val.mean(), outs_c, outs_t
         return val.mean()
+
+
+class LPIPSWithStyle(LPIPS):
+    def __init__(self, use_dropout=True):
+        super(LPIPSWithStyle, self).__init__(use_dropout=use_dropout)
+        self.style_loss = nn.MSELoss(reduce=False)
+
+    def forward(self, content_input, target, style_input=None):
+        loss_c, outs_c, outs_t = super().forward(content_input, target)
+
+        outs_s = self.net(self.scaling_layer(style_input)) if style_input is not None else outs_c
+        diffs = list()
+        for kk in range(len(self.chns)):
+            smooth_out_s = double_softmax(outs_s[kk])
+            smooth_out_t = double_softmax(outs_t[kk])
+            std_s, mean_s = self.calc_mean_std(smooth_out_s)
+            std_t, mean_t = self.calc_mean_std(smooth_out_t)
+            diff = self.style_loss(std_s, std_t) + self.style_loss(mean_s, mean_t)
+            diffs.append(diff * self.calc_balanced_loss_scale(smooth_out_s, smooth_out_t))
+
+        val = diffs[0]
+        for l in range(1, len(self.chns)):
+            val += diffs[l]
+        return loss_c, val.sum()
+
+    @staticmethod
+    def calc_mean_std(feat, eps=1e-5):
+        N, C = feat.shape
+        feat_var = feat.view(N, C, -1).var(dim=2) + eps
+        feat_std = feat_var.sqrt().view(N, C, 1, 1)
+        feat_mean = feat.view(N, C, -1).mean(dim=2).view(N, C, 1, 1)
+        return feat_mean, feat_std
+
+    @staticmethod
+    def calc_balanced_loss_scale(feat, target_feat):
+        return torch.sqrt(torch.sum(feat ** 2, dim=(1, 2, 3))).mean(dim=(1, 2, 3)) + \
+               torch.sqrt(torch.sum(target_feat ** 2, dim=(1, 2, 3))).mean(dim=(1, 2, 3))
 
 
 class ScalingLayer(nn.Module):
@@ -113,11 +154,15 @@ class vgg16(torch.nn.Module):
         return out
 
 
-def normalize_tensor(x,eps=1e-10):
+def normalize_tensor(x, eps=1e-10):
     norm_factor = torch.sqrt(torch.sum(x**2,dim=1,keepdim=True))
-    return x/(norm_factor+eps)
+    return x / (norm_factor + eps)
 
 
 def spatial_average(x, keepdim=True):
-    return x.mean([2,3],keepdim=keepdim)
+    return x.mean([2, 3], keepdim=keepdim)
 
+
+def double_softmax(x, eps=1e-10):
+    exp_x = torch.exp(x)
+    return exp_x / (exp_x.sum(dim=(-2, -1), keepdim=True) + eps)
