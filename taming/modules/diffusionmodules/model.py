@@ -148,8 +148,8 @@ class AttnBlock(nn.Module):
         out_channels = [int(in_channels // num_heads) for _ in range(num_heads)]
         out_channels[-1] += in_channels - np.sum(out_channels)
         self.qs = [torch.nn.Conv2d(in_channels, c, kernel_size=1, stride=1, padding=0) for c in out_channels]
-        self.ks = [torch.nn.Conv2d(in_channels, in_channels, kernel_size=1, stride=1, padding=0) for c in out_channels]
-        self.vs = [torch.nn.Conv2d(in_channels, in_channels, kernel_size=1, stride=1, padding=0) for c in out_channels]
+        self.ks = [torch.nn.Conv2d(in_channels, c, kernel_size=1, stride=1, padding=0) for c in out_channels]
+        self.vs = [torch.nn.Conv2d(in_channels, c, kernel_size=1, stride=1, padding=0) for c in out_channels]
 
         self.proj_out = torch.nn.Conv2d(in_channels, in_channels, kernel_size=1, stride=1, padding=0)
 
