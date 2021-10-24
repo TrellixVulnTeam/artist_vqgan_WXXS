@@ -64,7 +64,7 @@ class LPIPSWithStyle(LPIPS):
         self.style_loss = nn.MSELoss(reduce=False)
 
     def forward(self, content_input, target, style_input=None):
-        loss_c, outs_c, outs_t = super().forward(content_input, target)
+        loss_c, outs_c, outs_t = super().forward(content_input, target, return_feats=True)
 
         outs_s = self.net(self.scaling_layer(style_input)) if style_input is not None else outs_c
         diffs = list()
