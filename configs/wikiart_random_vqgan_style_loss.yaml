@@ -44,7 +44,7 @@ data:
       target: taming.data.wikiart.WikiArtTrain
       params:
         size: 256
-        root: /kaggle/input/test_art/
+        root: '/kaggle/input/test_art/'
         base:
           rescale: [1, 1.1, 1.2]
           crop: random
@@ -81,7 +81,7 @@ data:
       target: taming.data.wikiart.WikiArtValidation
       params:
         size: 256
-          root: /kaggle/input/test_art/
+        root: '/kaggle/input/test_art/'
         base:
           rescale: 1.
           crop: center
