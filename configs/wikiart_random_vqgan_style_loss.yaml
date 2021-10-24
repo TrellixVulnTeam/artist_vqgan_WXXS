@@ -96,4 +96,4 @@ lightning:
   trainer:
     accumulate_grad_batches: 6
     log_every_n_steps: 50
-#    precision: 16
+    precision: 16
