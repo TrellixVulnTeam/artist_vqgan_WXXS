@@ -71,6 +71,7 @@ class LPIPSWithStyle(LPIPS):
         for kk in range(len(self.chns)):
             smooth_out_s = double_softmax(outs_s[kk])
             smooth_out_t = double_softmax(outs_t[kk])
+            print('compare smooth: ', outs_s[kk].shape, smooth_out_s.shape)
             std_s, mean_s = self.calc_mean_std(smooth_out_s)
             std_t, mean_t = self.calc_mean_std(smooth_out_t)
             diff = self.style_loss(std_s, std_t) + self.style_loss(mean_s, mean_t)
@@ -79,14 +80,17 @@ class LPIPSWithStyle(LPIPS):
         val = diffs[0]
         for l in range(1, len(self.chns)):
             val += diffs[l]
+        print('content, style loss: ', loss_c.detach().item(), val.sum().detach().item())
         return loss_c, val.sum()
 
     @staticmethod
     def calc_mean_std(feat, eps=1e-5):
-        N, C = feat.shape
+        N, C, *_ = feat.shape
         feat_var = feat.view(N, C, -1).var(dim=2) + eps
         feat_std = feat_var.sqrt().view(N, C, 1, 1)
+        print('std: ', feat_std.shape)
         feat_mean = feat.view(N, C, -1).mean(dim=2).view(N, C, 1, 1)
+        print('mean: ', feat_std.shape)
         return feat_mean, feat_std
 
     @staticmethod
