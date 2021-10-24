@@ -131,3 +131,6 @@ dmypy.json
 .idea/
 checkpoints/
 =*
+**/*.pth
+**/*.pt
+**/*.ckpt
