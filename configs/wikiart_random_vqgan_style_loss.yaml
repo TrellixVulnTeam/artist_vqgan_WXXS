@@ -44,7 +44,7 @@ data:
       target: taming.data.wikiart.WikiArtTrain
       params:
         size: 256
-        root: '/data/test_art/'
+        root: '/data/wiki-art/'
         base:
           rescale: [1, 1.1, 1.2]
           crop: random
@@ -81,7 +81,7 @@ data:
       target: taming.data.wikiart.WikiArtValidation
       params:
         size: 256
-        root: '/data/test_art/'
+        root: '/data/wiki-art/'
         base:
           rescale: 1.
           crop: center
