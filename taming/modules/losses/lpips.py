@@ -76,13 +76,15 @@ class LPIPSWithStyle(LPIPS):
             print('compare smooth: ', outs_s[kk].shape, smooth_out_s.shape)
             std_s, mean_s = self.calc_mean_std(smooth_out_s)
             std_t, mean_t = self.calc_mean_std(smooth_out_t)
+            print('std: ', std_s.squeeze(), std_t.squeeze())
+            print('mean: ', mean_s.squeeze(), mean_t.squeeze())
             diff = self.style_loss(std_s, std_t) + self.style_loss(mean_s, mean_t)
-            print('diff: ', diff.shape)
-            print('loss weight: ', self.calc_balanced_loss_scale(smooth_out_s, smooth_out_t).shape)
+            print('diff: ', diff.squeeze())
+            print('loss weight: ', self.calc_balanced_loss_scale(smooth_out_s, smooth_out_t).squeeze())
             diff = diff / self.calc_balanced_loss_scale(smooth_out_s, smooth_out_t)
             diffs.append(diff.sum())
-        
-        print(diffs)
+
+        print('diffs: ', diffs)
         val = diffs[0]
         for l in range(1, len(self.chns)):
             val += diffs[l]
