@@ -68,9 +68,9 @@ class WikiArtBase(Dataset):
 
 
 class WikiArtTrain(WikiArtBase):
-    def __init__(self, size, base=None, ae_augmentations=None, disc_augmentations=None, *args):
+    def __init__(self, size, root='/data/datasets/art/wiki-art/',
+                 base=None, ae_augmentations=None, disc_augmentations=None, *args):
         super().__init__()
-        root = "/data/datasets/art/wiki-art/"
         relpaths = get_all_images(root)['train']
         paths = [os.path.join(root, relpath) for relpath in relpaths]
         self.data = \
@@ -81,9 +81,8 @@ class WikiArtTrain(WikiArtBase):
 
 
 class WikiArtValidation(WikiArtBase):
-    def __init__(self, size, base=None, *args):
+    def __init__(self, size, root='/data/datasets/art/wiki-art/', base=None, *args):
         super().__init__()
-        root = "/data/datasets/art/wiki-art/"
         relpaths = get_all_images(root)['val']
         paths = [os.path.join(root, relpath) for relpath in relpaths]
         self.data = ImagePaths(paths=paths, size=size, base=base)
