@@ -64,6 +64,8 @@ class LPIPSWithStyle(LPIPS):
         self.style_loss = nn.MSELoss(reduce=False)
 
     def forward(self, content_input, target, style_input=None):
+        print()
+        print('input: ', content_input.shape, target.shape)
         loss_c, outs_c, outs_t = super().forward(content_input, target, return_feats=True)
 
         outs_s = self.net(self.scaling_layer(style_input)) if style_input is not None else outs_c
@@ -75,6 +77,7 @@ class LPIPSWithStyle(LPIPS):
             std_s, mean_s = self.calc_mean_std(smooth_out_s)
             std_t, mean_t = self.calc_mean_std(smooth_out_t)
             diff = self.style_loss(std_s, std_t) + self.style_loss(mean_s, mean_t)
+            print('diff: ', diff.shape)
             diffs.append(diff * self.calc_balanced_loss_scale(smooth_out_s, smooth_out_t))
 
         val = diffs[0]
@@ -95,6 +98,9 @@ class LPIPSWithStyle(LPIPS):
 
     @staticmethod
     def calc_balanced_loss_scale(feat, target_feat):
+        print('calc balance: ', feat.shape, target_feat.shape)
+        print('sum: ', torch.sum(feat ** 2, dim=(1, 2, 3)).shape)
+
         return torch.sqrt(torch.sum(feat ** 2, dim=(1, 2, 3))).mean(dim=(1, 2, 3)) + \
                torch.sqrt(torch.sum(target_feat ** 2, dim=(1, 2, 3))).mean(dim=(1, 2, 3))
 
