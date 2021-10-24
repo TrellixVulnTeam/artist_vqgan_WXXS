@@ -82,6 +82,7 @@ class LPIPSWithStyle(LPIPS):
             print('diff: ', diff.squeeze())
             print('loss weight: ', self.calc_balanced_loss_scale(smooth_out_s, smooth_out_t).squeeze())
             diff = diff / self.calc_balanced_loss_scale(smooth_out_s, smooth_out_t)
+            print('layer diff: ', diff.sum())
             diffs.append(diff.sum())
 
         print('diffs: ', diffs)
@@ -165,7 +166,7 @@ class vgg16(torch.nn.Module):
         return out
 
 
-def normalize_tensor(x, eps=1e-10):
+def normalize_tensor(x, eps=1e-7):
     norm_factor = torch.sqrt(torch.sum(x**2,dim=1,keepdim=True))
     return x / (norm_factor + eps)
 
@@ -174,6 +175,6 @@ def spatial_average(x, keepdim=True):
     return x.mean([2, 3], keepdim=keepdim)
 
 
-def double_softmax(x, eps=1e-10):
+def double_softmax(x, eps=1e-7):
     exp_x = torch.exp(x)
     return exp_x / (exp_x.sum(dim=(-2, -1), keepdim=True) + eps)
