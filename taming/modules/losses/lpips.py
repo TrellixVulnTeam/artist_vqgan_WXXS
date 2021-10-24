@@ -177,6 +177,7 @@ def spatial_average(x, keepdim=True):
 
 
 def double_softmax(x, eps=1e-10):
+    x = torch.clamp_max(x, 80.)
     print('x max: ', x.max().item())
     exp_x = torch.exp(x)
     print('check exp: ', exp_x.mean().item())
