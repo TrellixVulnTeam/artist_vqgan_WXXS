@@ -54,7 +54,7 @@ class LPIPS(nn.Module):
             val += res[l]
 
         if return_feats:
-            return val.mean(), feats_c, feats_t
+            return val.mean(), outs_c, outs_t
         return val.mean()
 
 
@@ -66,24 +66,23 @@ class LPIPSWithStyle(LPIPS):
     def forward(self, content_input, target, style_input=None):
         print()
         print('input: ', content_input.shape, target.shape)
-        loss_c, feats_c, feats_t = super().forward(content_input, target, return_feats=True)
+        loss_c, outs_c, outs_t = super().forward(content_input, target, return_feats=True)
 
-        if style_input is not None:
-            feats_s = [normalize_tensor(o) for o in self.net(self.scaling_layer(style_input))]
-        else:
-            feats_s = feats_c
+        outs_s = self.net(self.scaling_layer(style_input)) if style_input is not None else outs_c
         diffs = list()
         for kk in range(len(self.chns)):
-            smooth_feat_s = double_softmax(feats_s[kk])
-            smooth_feat_t = double_softmax(feats_t[kk])
-            std_s, mean_s = self.calc_mean_std(smooth_feat_s)
-            std_t, mean_t = self.calc_mean_std(smooth_feat_t)
+            smooth_out_s = double_softmax(outs_s[kk])
+            smooth_out_t = double_softmax(outs_t[kk])
+            print('compare smooth: ', outs_s[kk].shape, smooth_out_s.shape)
+            print('check: ', smooth_out_s.mean().item(), smooth_out_t.mean().item())
+            std_s, mean_s = self.calc_mean_std(smooth_out_s)
+            std_t, mean_t = self.calc_mean_std(smooth_out_t)
             print('std: ', std_s.squeeze(), std_t.squeeze())
             print('mean: ', mean_s.squeeze(), mean_t.squeeze())
             diff = self.style_loss(std_s, std_t) + self.style_loss(mean_s, mean_t)
             print('diff: ', diff.squeeze())
-            print('loss weight: ', self.calc_balanced_loss_scale(smooth_feat_s, smooth_feat_t).squeeze())
-            diff = diff / self.calc_balanced_loss_scale(smooth_feat_s, smooth_feat_t)
+            print('loss weight: ', self.calc_balanced_loss_scale(smooth_out_s, smooth_out_t).squeeze())
+            diff = diff / self.calc_balanced_loss_scale(smooth_out_s, smooth_out_t)
             print('layer diff: ', diff.sum())
             diffs.append(diff.sum())
 
