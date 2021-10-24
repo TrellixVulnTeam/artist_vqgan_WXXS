@@ -21,7 +21,7 @@ def hinge_d_loss(logits_real, logits_rec, logits_fake):
     loss_real = torch.mean(F.relu(1. - logits_real))
     loss_rec = torch.mean(F.relu(1. + logits_rec))
     loss_fake = torch.mean(F.relu(1. + logits_fake))
-    d_loss = (loss_real + loss_rec + loss_fake) / 3.
+    d_loss = loss_real * .5 + (loss_rec + loss_fake) * .25
     return d_loss, loss_real, loss_rec, loss_fake
 
 
@@ -29,7 +29,7 @@ def vanilla_d_loss(logits_real, logits_rec, logits_fake):
     loss_real = torch.mean(torch.nn.functional.softplus(-logits_real))
     loss_rec = torch.mean(torch.nn.functional.softplus(logits_rec))
     loss_fake = torch.mean(torch.nn.functional.softplus(logits_fake))
-    d_loss = (loss_real + loss_rec + loss_fake) / 3.
+    d_loss = loss_real * .5 + (loss_rec + loss_fake) * .25
     return d_loss, loss_real, loss_rec, loss_fake
 
 
@@ -143,11 +143,11 @@ class VQLPIPSWithDiscriminator(nn.Module):
                 log.update({"{}_supervised/style_loss".format(split): s_loss.detach()})
             if fake is not None:
                 log.update({
-                    "{}_adversarial/weight/disc_factor".format(split): torch.tensor(disc_factor),
-                    "{}_adversarial/weight/adv_weight".format(split): adv_weight.detach(),
-                    "{}_adversarial/weight/d_fake_weight".format(split): adv_fake_weight.detach(),
-                    "{}_adversarial/G/g_rec_loss".format(split): g_rec_loss.detach(),
-                    "{}_adversarial/G/g_fake_loss".format(split): g_fake_loss.detach(),
+                    "{}_adversarial_weight/disc_factor".format(split): torch.tensor(disc_factor),
+                    "{}_adversarial_weight/adv_weight".format(split): adv_weight.detach(),
+                    "{}_adversarial_weight/d_fake_weight".format(split): adv_fake_weight.detach(),
+                    "{}_adversarial_G/g_rec_loss".format(split): g_rec_loss.detach(),
+                    "{}_adversarial_G/g_fake_loss".format(split): g_fake_loss.detach(),
                 })
             return loss, log
 
@@ -174,9 +174,9 @@ class VQLPIPSWithDiscriminator(nn.Module):
                 d_loss_real, d_loss_rec, d_loss_fake = torch.zeros(3)
 
             log = {
-                "{}_adversarial/D/disc_loss".format(split): d_loss.clone().detach(),
-                "{}_adversarial/D/disc_loss_real".format(split): d_loss_real.detach(),
-                "{}_adversarial/D/disc_loss_fake".format(split): d_loss_fake.detach(),
-                "{}_adversarial/D/disc_loss_rec".format(split): d_loss_rec.detach(),
+                "{}_adversarial_D/disc_loss".format(split): d_loss.clone().detach(),
+                "{}_adversarial_D/disc_loss_real".format(split): d_loss_real.detach(),
+                "{}_adversarial_D/disc_loss_fake".format(split): d_loss_fake.detach(),
+                "{}_adversarial_D/disc_loss_rec".format(split): d_loss_rec.detach(),
             } if fake is not None else dict()
             return d_loss, log

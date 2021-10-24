@@ -59,7 +59,7 @@ class VQModel(pl.LightningModule):
         if monitor is not None:
             self.monitor = monitor
 
-        random_latent = torch.randn((36, *self.decoder.z_shape[1:]))
+        random_latent = torch.rand((36, *self.decoder.z_shape[1:]))
         random_latent = random_latent * 2. - 1.
         self.register_buffer('zs', random_latent)
 
@@ -120,7 +120,7 @@ class VQModel(pl.LightningModule):
             xrec, qloss = self(x)
 
             if self.calc_adv_loss:
-                random_z = torch.randn_like(self.vs[:x.shape[0]]) * 2. - 1.
+                random_z = torch.rand_like(self.zs[:x.shape[0]]) * 2. - 1.
                 fake = self.forward_with_latent(random_z)
             else:
                 fake = None
@@ -145,7 +145,7 @@ class VQModel(pl.LightningModule):
                 log_dict_disc.update({'ada/aug_prob': self.get_disc_aug_p()})
             self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=True, on_epoch=False)
             if self.calc_adv_loss:
-                training_stats.report(self.ada_stats_regex, 1 - log_dict_disc['train_adversarial/D/disc_loss_real'])
+                training_stats.report(self.ada_stats_regex, 1 - log_dict_disc['train_adversarial_D/disc_loss_real'])
             return discloss
 
     def validation_step(self, batch, batch_idx):
@@ -198,13 +198,6 @@ class VQModel(pl.LightningModule):
             adjust = sign * value
             self.adjust_disc_aug_p(adjust)
             self.update_ada = False
-
-    # def on_epoch_start(self) -> None:
-    #     if self.current_epoch == 0:
-    #         self.trainer.test(model=self, verbose=False)
-
-    # def on_epoch_end(self):
-    #     self.trainer.test(model=self, verbose=False)
 
     def configure_optimizers(self):
         lr = self.learning_rate
