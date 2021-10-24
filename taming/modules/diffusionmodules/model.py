@@ -139,13 +139,13 @@ class ResnetBlock(nn.Module):
 
 
 class AttnBlock(nn.Module):
-    def __init__(self, in_channels):
+    def __init__(self, in_channels, num_heads=1):
         super().__init__()
         self.in_channels = in_channels
 
         self.norm = Normalize(in_channels)
-        self.q = torch.nn.Conv2d(in_channels, in_channels, kernel_size=1, stride=1, padding=0)
-        self.k = torch.nn.Conv2d(in_channels, in_channels, kernel_size=1, stride=1, padding=0)
+        self.q = torch.nn.Conv2d(in_channels, in_channels * num_heads, kernel_size=1, stride=1, padding=0)
+        self.k = torch.nn.Conv2d(in_channels, in_channels * num_heads, kernel_size=1, stride=1, padding=0)
         self.v = torch.nn.Conv2d(in_channels, in_channels, kernel_size=1, stride=1, padding=0)
         self.proj_out = torch.nn.Conv2d(in_channels, in_channels, kernel_size=1, stride=1, padding=0)
 
@@ -176,50 +176,6 @@ class AttnBlock(nn.Module):
         return x+h_
 
 
-class MultiHeadAttnBlock(nn.Module):
-    def __init__(self, in_channels, num_heads=1):
-        super().__init__()
-        self.in_channels = in_channels
-
-        self.norm = Normalize(in_channels)
-
-        out_channels = [int(in_channels // num_heads) for _ in range(num_heads)]
-        out_channels[-1] += in_channels - np.sum(out_channels)
-        self.qs = [torch.nn.Conv2d(in_channels, c, kernel_size=1, stride=1, padding=0) for c in out_channels]
-        self.ks = [torch.nn.Conv2d(in_channels, c, kernel_size=1, stride=1, padding=0) for c in out_channels]
-        self.vs = [torch.nn.Conv2d(in_channels, c, kernel_size=1, stride=1, padding=0) for c in out_channels]
-
-        self.proj_out = torch.nn.Conv2d(in_channels, in_channels, kernel_size=1, stride=1, padding=0)
-
-    def forward(self, x):
-        h_ = x
-        h_ = self.norm(h_)
-        qs = [q(h_) for q in self.qs]
-        ks = [k for k in self.ks]
-        vs = [v for v in self.vs]
-
-        # compute attention
-        attns = []
-        for q, k, v in zip(qs, ks, vs):
-            b, c, h, w = q.shape
-            q = q.reshape(b, c, h * w)
-            q = q.permute(0, 2, 1)  # b,hw,c
-            k = k.reshape(b, c, h * w)  # b,c,hw
-            w_ = torch.bmm(q, k)  # b,hw,hw    w[b,i,j]=sum_c q[b,i,c]k[b,c,j]
-            w_ = w_ * (int(c) ** -0.5)
-            w_ = torch.nn.functional.softmax(w_, dim=2)
-
-            # attend to values
-            v = v.reshape(b,c,h*w)
-            w_ = w_.permute(0,2,1)   # b,hw,hw (first hw of k, second of q)
-            attns.append(torch.bmm(v,w_).reshape(b,c,h,w))
-
-        h_ = torch.cat(attns, 1)
-        h_ = self.proj_out(h_)
-
-        return x+h_
-
-
 class Model(nn.Module):
     def __init__(self, *, ch, out_ch, ch_mult=(1,2,4,8), num_res_blocks,
                  attn_resolutions, dropout=0.0, resamp_with_conv=True, in_channels,
@@ -231,8 +187,6 @@ class Model(nn.Module):
         self.num_res_blocks = num_res_blocks
         self.resolution = resolution
         self.in_channels = in_channels
-
-        Attn = AttnBlock if num_attn_heads == 1 else lambda in_c: MultiHeadAttnBlock(in_c, num_attn_heads)
 
         self.use_timestep = use_timestep
         if self.use_timestep:
@@ -267,7 +221,7 @@ class Model(nn.Module):
                                          dropout=dropout))
                 block_in = block_out
                 if curr_res in attn_resolutions:
-                    attn.append(Attn(block_in))
+                    attn.append(AttnBlock(block_in, num_attn_heads))
             down = nn.Module()
             down.block = block
             down.attn = attn
@@ -282,7 +236,7 @@ class Model(nn.Module):
                                        out_channels=block_in,
                                        temb_channels=self.temb_ch,
                                        dropout=dropout)
-        self.mid.attn_1 = Attn(block_in)
+        self.mid.attn_1 = AttnBlock(block_in, num_attn_heads)
         self.mid.block_2 = ResnetBlock(in_channels=block_in,
                                        out_channels=block_in,
                                        temb_channels=self.temb_ch,
@@ -381,8 +335,6 @@ class Encoder(nn.Module):
         self.resolution = resolution
         self.in_channels = in_channels
 
-        Attn = AttnBlock if num_attn_heads == 1 else lambda in_c: MultiHeadAttnBlock(in_c, num_attn_heads)
-
         # downsampling
         self.conv_in = torch.nn.Conv2d(in_channels,
                                        self.ch,
@@ -405,7 +357,7 @@ class Encoder(nn.Module):
                                          dropout=dropout))
                 block_in = block_out
                 if curr_res in attn_resolutions:
-                    attn.append(Attn(block_in))
+                    attn.append(AttnBlock(block_in, num_attn_heads))
             down = nn.Module()
             down.block = block
             down.attn = attn
@@ -420,7 +372,7 @@ class Encoder(nn.Module):
                                        out_channels=block_in,
                                        temb_channels=self.temb_ch,
                                        dropout=dropout)
-        self.mid.attn_1 = Attn(block_in)
+        self.mid.attn_1 = AttnBlock(block_in, num_attn_heads)
         self.mid.block_2 = ResnetBlock(in_channels=block_in,
                                        out_channels=block_in,
                                        temb_channels=self.temb_ch,
