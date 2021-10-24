@@ -81,7 +81,8 @@ class LPIPSWithStyle(LPIPS):
             print('loss weight: ', self.calc_balanced_loss_scale(smooth_out_s, smooth_out_t).shape)
             diff = diff * self.calc_balanced_loss_scale(smooth_out_s, smooth_out_t)
             diffs.append(diff.sum())
-
+        
+        print(diffs)
         val = diffs[0]
         for l in range(1, len(self.chns)):
             val += diffs[l]
