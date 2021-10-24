@@ -74,6 +74,7 @@ class LPIPSWithStyle(LPIPS):
             smooth_out_s = double_softmax(outs_s[kk])
             smooth_out_t = double_softmax(outs_t[kk])
             print('compare smooth: ', outs_s[kk].shape, smooth_out_s.shape)
+            print('check: ', smooth_out_s.mean().item(), smooth_out_t.mean().item())
             std_s, mean_s = self.calc_mean_std(smooth_out_s)
             std_t, mean_t = self.calc_mean_std(smooth_out_t)
             print('std: ', std_s.squeeze(), std_t.squeeze())
@@ -166,7 +167,7 @@ class vgg16(torch.nn.Module):
         return out
 
 
-def normalize_tensor(x, eps=1e-7):
+def normalize_tensor(x, eps=1e-10):
     norm_factor = torch.sqrt(torch.sum(x**2,dim=1,keepdim=True))
     return x / (norm_factor + eps)
 
@@ -175,6 +176,7 @@ def spatial_average(x, keepdim=True):
     return x.mean([2, 3], keepdim=keepdim)
 
 
-def double_softmax(x, eps=1e-7):
+def double_softmax(x, eps=1e-10):
     exp_x = torch.exp(x)
+    print('check exp: ', exp_x.mean().item())
     return exp_x / (exp_x.sum(dim=(-2, -1), keepdim=True) + eps)
