@@ -64,8 +64,6 @@ class LPIPSWithStyle(LPIPS):
         self.style_loss = nn.MSELoss(reduce=False)
 
     def forward(self, content_input, target, style_input=None):
-        print()
-        print('input: ', content_input.shape, target.shape)
         loss_c, outs_c, outs_t = super().forward(content_input, target, return_feats=True)
 
         outs_s = self.net(self.scaling_layer(style_input)) if style_input is not None else outs_c
@@ -73,24 +71,15 @@ class LPIPSWithStyle(LPIPS):
         for kk in range(len(self.chns)):
             smooth_out_s = double_softmax(outs_s[kk])
             smooth_out_t = double_softmax(outs_t[kk])
-            print('compare smooth: ', outs_s[kk].shape, smooth_out_s.shape)
-            print('check: ', smooth_out_s.mean().item(), smooth_out_t.mean().item())
             std_s, mean_s = self.calc_mean_std(smooth_out_s)
             std_t, mean_t = self.calc_mean_std(smooth_out_t)
-            print('std: ', std_s.squeeze(), std_t.squeeze())
-            print('mean: ', mean_s.squeeze(), mean_t.squeeze())
             diff = self.style_loss(std_s, std_t) + self.style_loss(mean_s, mean_t)
-            print('diff: ', diff.squeeze())
-            print('loss weight: ', self.calc_balanced_loss_scale(smooth_out_s, smooth_out_t).squeeze())
             diff = diff / self.calc_balanced_loss_scale(smooth_out_s, smooth_out_t)
-            print('layer diff: ', diff.sum())
             diffs.append(diff.sum())
 
-        print('diffs: ', diffs)
         val = diffs[0]
         for l in range(1, len(self.chns)):
             val += diffs[l]
-        print('content, style loss: ', loss_c.detach().item(), val.detach().item())
         return loss_c, val
 
     @staticmethod
@@ -98,9 +87,7 @@ class LPIPSWithStyle(LPIPS):
         N, *_ = feat.shape
         feat_var = feat.view(N, -1).var(dim=-1) + eps
         feat_std = feat_var.sqrt().view(N, 1, 1, 1)
-        print('std: ', feat_std.shape)
         feat_mean = feat.view(N, -1).mean(dim=-1).view(N, 1, 1, 1)
-        print('mean: ', feat_std.shape)
         return feat_mean, feat_std
 
     @staticmethod
@@ -178,7 +165,5 @@ def spatial_average(x, keepdim=True):
 
 def double_softmax(x, eps=1e-10):
     x = torch.clamp_max(x, 80.)
-    print('x max: ', x.max().item())
     exp_x = torch.exp(x)
-    print('check exp: ', exp_x.mean().item())
     return exp_x / (exp_x.sum(dim=(-2, -1), keepdim=True) + eps)
