@@ -78,31 +78,29 @@ class LPIPSWithStyle(LPIPS):
             std_t, mean_t = self.calc_mean_std(smooth_out_t)
             diff = self.style_loss(std_s, std_t) + self.style_loss(mean_s, mean_t)
             print('diff: ', diff.shape)
-            diffs.append(diff * self.calc_balanced_loss_scale(smooth_out_s, smooth_out_t))
+            print('loss weight: ', self.calc_balanced_loss_scale(smooth_out_s, smooth_out_t).shape)
+            diff = diff * self.calc_balanced_loss_scale(smooth_out_s, smooth_out_t)
+            diffs.append(diff.sum())
 
         val = diffs[0]
         for l in range(1, len(self.chns)):
             val += diffs[l]
-        print('content, style loss: ', loss_c.detach().item(), val.sum().detach().item())
-        return loss_c, val.sum()
+        print('content, style loss: ', loss_c.detach().item(), val.detach().item())
+        return loss_c, val
 
     @staticmethod
     def calc_mean_std(feat, eps=1e-5):
-        N, C, *_ = feat.shape
-        feat_var = feat.view(N, C, -1).var(dim=2) + eps
-        feat_std = feat_var.sqrt().view(N, C, 1, 1)
+        N, *_ = feat.shape
+        feat_var = feat.view(N, -1).var(dim=-1) + eps
+        feat_std = feat_var.sqrt().view(N, 1, 1, 1)
         print('std: ', feat_std.shape)
-        feat_mean = feat.view(N, C, -1).mean(dim=2).view(N, C, 1, 1)
+        feat_mean = feat.view(N, -1).mean(dim=-1).view(N, 1, 1, 1)
         print('mean: ', feat_std.shape)
         return feat_mean, feat_std
 
     @staticmethod
     def calc_balanced_loss_scale(feat, target_feat):
-        print('calc balance: ', feat.shape, target_feat.shape)
-        print('sum: ', torch.sum(feat ** 2, dim=(1, 2, 3)).shape)
-
-        return torch.sqrt(torch.sum(feat ** 2, dim=(1, 2, 3))).mean(dim=(1, 2, 3)) + \
-               torch.sqrt(torch.sum(target_feat ** 2, dim=(1, 2, 3))).mean(dim=(1, 2, 3))
+        return torch.mean(feat ** 2, dim=(1, 2, 3)) + torch.mean(target_feat ** 2, dim=(1, 2, 3))
 
 
 class ScalingLayer(nn.Module):
