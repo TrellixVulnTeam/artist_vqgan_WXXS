@@ -62,6 +62,7 @@ class LPIPSWithStyle(LPIPS):
     def __init__(self, use_dropout=True):
         super(LPIPSWithStyle, self).__init__(use_dropout=use_dropout)
         self.style_loss = nn.MSELoss(reduce=False)
+        self.smooth = nn.Softmax2d()
 
     def forward(self, content_input, target, style_input=None):
         loss_c, outs_c, outs_t = super().forward(content_input, target, return_feats=True)
@@ -69,8 +70,8 @@ class LPIPSWithStyle(LPIPS):
         outs_s = self.net(self.scaling_layer(style_input)) if style_input is not None else outs_c
         diffs = list()
         for kk in range(len(self.chns)):
-            smooth_out_s = double_softmax(outs_s[kk])
-            smooth_out_t = double_softmax(outs_t[kk])
+            smooth_out_s = self.smooth(outs_s[kk])
+            smooth_out_t = self.smooth(outs_t[kk])
             std_s, mean_s = self.calc_mean_std(smooth_out_s)
             std_t, mean_t = self.calc_mean_std(smooth_out_t)
             diff = self.style_loss(std_s, std_t) + self.style_loss(mean_s, mean_t)
@@ -161,8 +162,3 @@ def normalize_tensor(x, eps=1e-10):
 
 def spatial_average(x, keepdim=True):
     return x.mean([2, 3], keepdim=keepdim)
-
-
-def double_softmax(x, eps=1e-10):
-    exp_x = torch.exp(x * 0.1)
-    return exp_x / (exp_x.sum(dim=(-2, -1), keepdim=True) + eps)
