@@ -165,5 +165,5 @@ def spatial_average(x, keepdim=True):
 
 
 def double_softmax(x, eps=1e-10):
-    exp_x = torch.exp(x * 0.25)
+    exp_x = torch.exp(x * 0.1)
     return exp_x / (exp_x.sum(dim=(-2, -1), keepdim=True) + eps)

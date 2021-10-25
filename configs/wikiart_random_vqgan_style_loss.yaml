@@ -30,7 +30,7 @@ model:
         pixelloss_weight: 1.0
         codebook_weight: 1.0
         perceptual_weight: 1.0
-        style_weight: 0.17
+        style_weight: 0.7
         disc_conditional: false
         disc_in_channels: 3
         disc_start: 170000
