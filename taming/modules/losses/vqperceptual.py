@@ -44,10 +44,11 @@ class VQLPIPSWithDiscriminator(nn.Module):
         self.pixel_weight = pixelloss_weight
         self.perceptual_weight = perceptual_weight
         self.style_weight = style_weight
-        if self.style_weight > 0:
-            self.perceptual_loss = LPIPSWithStyle().eval().requires_grad_(False)
-        else:
-            self.perceptual_loss = LPIPS().eval().requires_grad_(False)
+        # if self.style_weight > 0:
+        #     self.perceptual_loss = LPIPSWithStyle().eval().requires_grad_(False)
+        # else:
+        #     self.perceptual_loss = LPIPS().eval().requires_grad_(False)
+        self.perceptual_loss = LPIPSWithStyle().eval().requires_grad_(False)
 
         self.discriminator = NLayerDiscriminator(input_nc=disc_in_channels,
                                                  n_layers=disc_num_layers,
@@ -94,12 +95,14 @@ class VQLPIPSWithDiscriminator(nn.Module):
             rec_loss = torch.abs(inputs - reconstructions).mean()
             nll_loss = self.pixel_weight * rec_loss
 
-            if self.style_weight > 0:
-                p_loss, s_loss = self.perceptual_loss(inputs, reconstructions)
-                nll_loss += self.perceptual_weight * (p_loss + self.style_weight * s_loss)
-            else:
-                p_loss = self.perceptual_loss(inputs, reconstructions)
-                nll_loss += self.perceptual_weight * p_loss
+            # if self.style_weight > 0:
+            #     p_loss, s_loss = self.perceptual_loss(inputs, reconstructions)
+            #     nll_loss += self.perceptual_weight * (p_loss + self.style_weight * s_loss)
+            # else:
+            #     p_loss = self.perceptual_loss(inputs, reconstructions)
+            #     nll_loss += self.perceptual_weight * p_loss
+            p_loss, s_loss = self.perceptual_loss(inputs, reconstructions)
+            nll_loss += self.perceptual_weight * (p_loss + self.style_weight * s_loss)
 
             loss = nll_loss + self.codebook_weight * codebook_loss
 
