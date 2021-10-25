@@ -80,7 +80,6 @@ class LPIPSWithStyle(LPIPS):
         val = diffs[0]
         for l in range(1, len(self.chns)):
             val += diffs[l]
-        print(val)
         return loss_c, val
 
     @staticmethod
