@@ -149,6 +149,8 @@ class VQLPIPSWithDiscriminator(nn.Module):
                 "{}_supervised/rec_loss".format(split): rec_loss.detach(),
                 "{}_supervised/p_loss".format(split): p_loss.detach(),
                 "{}_supervised/kl_loss".format(split): latent_kl_loss.detach(),
+                "{}_stat/quant_mean".format(split): latent_mean.detach(),
+                "{}_stat/quant_std".format(split): latent_mean.detach().square(),
                 "{}_total/total_loss".format(split): loss.clone().detach().mean(),
             }
             # if self.style_weight > 0:
