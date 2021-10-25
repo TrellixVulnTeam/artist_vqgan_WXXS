@@ -299,8 +299,6 @@ class ImageLogger(Callback):
     @rank_zero_only
     def log_histogram(self, pl_module, histogram, batch_idx, split):
         pl_module.logger.experiment.add_histogram(f'{split}/latent', histogram.detach().cpu(), pl_module.global_step)
-        pl_module.logger.experiment.add_histogram(f'{split}/tanh_latent', torch.tanh(histogram * .5).detach().cpu(),
-                                                  pl_module.global_step)
 
     def log_img(self, pl_module, batch, batch_idx, split="train"):
         if not hasattr(pl_module, 'log_images') or not callable(pl_module.log_images) or self.max_images <= 0:

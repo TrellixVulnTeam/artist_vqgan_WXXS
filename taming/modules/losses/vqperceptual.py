@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from taming.modules.losses.lpips import LPIPS, LPIPSWithStyle
+from taming.modules.losses.kl_loss import kl_loss
 from taming.modules.discriminator.model import NLayerDiscriminator, weights_init
 
 
@@ -34,7 +35,7 @@ def vanilla_d_loss(logits_real, logits_rec, logits_fake):
 
 
 class VQLPIPSWithDiscriminator(nn.Module):
-    def __init__(self, disc_start, codebook_weight=1.0, pixelloss_weight=1.0,
+    def __init__(self, disc_start, codebook_weight=1.0, pixelloss_weight=1.0, kl_weight=1.0,
                  disc_num_layers=3, disc_in_channels=3, disc_factor=1.0, disc_weight=1.0,
                  perceptual_weight=1.0, style_weight=0., use_actnorm=False, disc_conditional=False,
                  disc_ndf=64, disc_loss="hinge"):
@@ -42,6 +43,7 @@ class VQLPIPSWithDiscriminator(nn.Module):
         assert disc_loss in ["hinge", "vanilla"]
         self.codebook_weight = codebook_weight
         self.pixel_weight = pixelloss_weight
+        self.kl_weight = kl_weight
         self.perceptual_weight = perceptual_weight
         self.style_weight = style_weight
         # if self.style_weight > 0:
@@ -81,7 +83,7 @@ class VQLPIPSWithDiscriminator(nn.Module):
         d_weight = torch.clamp(d_weight, 0.0, 1e4).detach()
         return d_weight
 
-    def forward(self, codebook_loss, inputs, reconstructions, fake, optimizer_idx,
+    def forward(self, codebook_loss, latent, inputs, reconstructions, fake, optimizer_idx,
                 global_step, last_layer=None, cond=None, split="train"):
         inputs = inputs.contiguous()
         reconstructions = reconstructions.contiguous()
@@ -104,7 +106,9 @@ class VQLPIPSWithDiscriminator(nn.Module):
             p_loss, s_loss = self.perceptual_loss(inputs, reconstructions)
             nll_loss += self.perceptual_weight * (p_loss + self.style_weight * s_loss)
 
-            loss = nll_loss + self.codebook_weight * codebook_loss
+            latent_kl_loss = kl_loss(*torch.var_mean(latent))
+
+            loss = nll_loss + self.codebook_weight * codebook_loss + self.kl_weight * latent_kl_loss
 
             # the GAN part
             if disc_factor > 0:
@@ -140,6 +144,7 @@ class VQLPIPSWithDiscriminator(nn.Module):
                 "{}_supervised/nll_loss".format(split): nll_loss.detach(),
                 "{}_supervised/rec_loss".format(split): rec_loss.detach(),
                 "{}_supervised/p_loss".format(split): p_loss.detach(),
+                "{}_supervised/kl_loss".format(split): latent_kl_loss.detach(),
                 "{}_total/total_loss".format(split): loss.clone().detach().mean(),
             }
             # if self.style_weight > 0:

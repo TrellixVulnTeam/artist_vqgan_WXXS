@@ -12,7 +12,7 @@ from taming.modules.diffusionmodules.model import Encoder, Decoder
 from taming.modules.vqvae.quantize import VectorQuantizer2 as VectorQuantizer
 from taming.modules.vqvae.quantize import GumbelQuantize
 from taming.modules.vqvae.quantize import EMAVectorQuantizer
-from torch_utils import training_stats, misc
+from torch_utils import training_stats
 
 
 class VQModel(pl.LightningModule):
@@ -59,8 +59,7 @@ class VQModel(pl.LightningModule):
         if monitor is not None:
             self.monitor = monitor
 
-        random_latent = torch.rand((36, *self.decoder.z_shape[1:]))
-        random_latent = random_latent * 2. - 1.
+        random_latent = torch.randn((36, *self.decoder.z_shape[1:]))
         self.register_buffer('zs', random_latent)
 
     def init_from_ckpt(self, path, ignore_keys=list()):
@@ -92,7 +91,7 @@ class VQModel(pl.LightningModule):
 
     def forward(self, input, return_quant=False):
         quant, diff, _ = self.encode(input)
-        dec = self.decode(torch.tanh(quant * .5))
+        dec = self.decode(quant)
         if not return_quant:
             return dec, diff
         return dec, quant, diff
@@ -117,20 +116,20 @@ class VQModel(pl.LightningModule):
     def training_step(self, batch, batch_idx, optimizer_idx):
         if optimizer_idx == 0:
             x = self.get_input(batch, self.image_key)
-            xrec, qloss = self(x)
+            xrec, quant, qloss = self(x, return_quant=True)
 
             if self.calc_adv_loss:
-                random_z = torch.rand_like(self.zs[:x.shape[0]]) * 2. - 1.
+                random_z = torch.randn_like(self.zs[:x.shape[0]])
                 fake = self.forward_with_latent(random_z)
             else:
                 fake = None
-            self.real, self.reconstruction, self.fake, self.qloss = x, xrec, fake, qloss
+            self.real, self.reconstruction, self.fake, self.quant, self.qloss = x, xrec, fake, quant, qloss
 
         if optimizer_idx == 0:
             # autoencode
             aeloss, log_dict_ae = \
-                self.loss(self.qloss, self.real, self.reconstruction, self.fake, optimizer_idx, self.global_step,
-                          last_layer=self.get_last_layer(), split="train")
+                self.loss(self.qloss, self.quant, self.real, self.reconstruction, self.fake,
+                          optimizer_idx, self.global_step, last_layer=self.get_last_layer(), split="train")
             self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=True, on_epoch=False)
             return aeloss
 
@@ -158,7 +157,7 @@ class VQModel(pl.LightningModule):
             fake = None
 
         aeloss, log_dict_ae = \
-            self.loss(qloss, x, xrec, fake, 0, self.global_step, last_layer=self.get_last_layer(), split="val")
+            self.loss(qloss, None, x, xrec, fake, 0, self.global_step, last_layer=self.get_last_layer(), split="val")
         discloss, log_dict_disc = self.loss(None, x, xrec, fake, 1, self.global_step, split="val")
         self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=False, on_epoch=True)
         self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=False, on_epoch=True)
@@ -176,7 +175,7 @@ class VQModel(pl.LightningModule):
         xrec, qloss = self(x)
 
         aeloss, log_dict_ae = \
-            self.loss(qloss, x, xrec, None, 0, self.global_step, last_layer=self.get_last_layer(), split="test")
+            self.loss(qloss, None, x, xrec, None, 0, self.global_step, last_layer=self.get_last_layer(), split="test")
         discloss, log_dict_disc = self.loss(None, x, xrec, None, 1, self.global_step, split="test")
         if self.global_step != 0:
             self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=False, on_epoch=True)
