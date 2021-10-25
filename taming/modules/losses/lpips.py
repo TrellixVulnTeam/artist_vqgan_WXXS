@@ -62,37 +62,38 @@ class LPIPSWithStyle(LPIPS):
     def __init__(self, use_dropout=True):
         super(LPIPSWithStyle, self).__init__(use_dropout=use_dropout)
         self.style_loss = nn.MSELoss(reduce=False)
+        self.smooth = nn.Softmax2d()
 
     def forward(self, content_input, target, style_input=None):
-        loss_c, outs_c, outs_t = super().forward(content_input, target)
+        loss_c, outs_c, outs_t = super().forward(content_input, target, return_feats=True)
 
         outs_s = self.net(self.scaling_layer(style_input)) if style_input is not None else outs_c
         diffs = list()
         for kk in range(len(self.chns)):
-            smooth_out_s = double_softmax(outs_s[kk])
-            smooth_out_t = double_softmax(outs_t[kk])
+            smooth_out_s = self.smooth(outs_s[kk])
+            smooth_out_t = self.smooth(outs_t[kk])
             std_s, mean_s = self.calc_mean_std(smooth_out_s)
             std_t, mean_t = self.calc_mean_std(smooth_out_t)
             diff = self.style_loss(std_s, std_t) + self.style_loss(mean_s, mean_t)
-            diffs.append(diff * self.calc_balanced_loss_scale(smooth_out_s, smooth_out_t))
+            diff = diff / self.calc_balanced_loss_scale(smooth_out_s, smooth_out_t)
+            diffs.append(diff.mean())
 
         val = diffs[0]
         for l in range(1, len(self.chns)):
             val += diffs[l]
-        return loss_c, val.sum()
+        return loss_c, val
 
     @staticmethod
     def calc_mean_std(feat, eps=1e-5):
-        N, C = feat.shape
-        feat_var = feat.view(N, C, -1).var(dim=2) + eps
-        feat_std = feat_var.sqrt().view(N, C, 1, 1)
-        feat_mean = feat.view(N, C, -1).mean(dim=2).view(N, C, 1, 1)
+        N, *_ = feat.shape
+        feat_var = feat.view(N, -1).var(dim=-1) + eps
+        feat_std = feat_var.sqrt().view(N, 1, 1, 1)
+        feat_mean = feat.view(N, -1).mean(dim=-1).view(N, 1, 1, 1)
         return feat_mean, feat_std
 
     @staticmethod
     def calc_balanced_loss_scale(feat, target_feat):
-        return torch.sqrt(torch.sum(feat ** 2, dim=(1, 2, 3))).mean(dim=(1, 2, 3)) + \
-               torch.sqrt(torch.sum(target_feat ** 2, dim=(1, 2, 3))).mean(dim=(1, 2, 3))
+        return torch.mean(feat ** 2, dim=(1, 2, 3)) + torch.mean(target_feat ** 2, dim=(1, 2, 3))
 
 
 class ScalingLayer(nn.Module):
@@ -161,8 +162,3 @@ def normalize_tensor(x, eps=1e-10):
 
 def spatial_average(x, keepdim=True):
     return x.mean([2, 3], keepdim=keepdim)
-
-
-def double_softmax(x, eps=1e-10):
-    exp_x = torch.exp(x)
-    return exp_x / (exp_x.sum(dim=(-2, -1), keepdim=True) + eps)

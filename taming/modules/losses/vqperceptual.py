@@ -44,10 +44,11 @@ class VQLPIPSWithDiscriminator(nn.Module):
         self.pixel_weight = pixelloss_weight
         self.perceptual_weight = perceptual_weight
         self.style_weight = style_weight
-        if self.style_weight > 0:
-            self.perceptual_loss = LPIPSWithStyle().eval().requires_grad_(False)
-        else:
-            self.perceptual_loss = LPIPS().eval().requires_grad_(False)
+        # if self.style_weight > 0:
+        #     self.perceptual_loss = LPIPSWithStyle().eval().requires_grad_(False)
+        # else:
+        #     self.perceptual_loss = LPIPS().eval().requires_grad_(False)
+        self.perceptual_loss = LPIPSWithStyle().eval().requires_grad_(False)
 
         self.discriminator = NLayerDiscriminator(input_nc=disc_in_channels,
                                                  n_layers=disc_num_layers,
@@ -94,12 +95,14 @@ class VQLPIPSWithDiscriminator(nn.Module):
             rec_loss = torch.abs(inputs - reconstructions).mean()
             nll_loss = self.pixel_weight * rec_loss
 
-            if self.style_weight > 0:
-                p_loss, s_loss = self.perceptual_loss(inputs, reconstructions)
-                nll_loss = self.perceptual_weight * (p_loss + self.style_weight * s_loss)
-            else:
-                p_loss = self.perceptual_loss(inputs, reconstructions)
-                nll_loss += self.perceptual_weight * p_loss
+            # if self.style_weight > 0:
+            #     p_loss, s_loss = self.perceptual_loss(inputs, reconstructions)
+            #     nll_loss += self.perceptual_weight * (p_loss + self.style_weight * s_loss)
+            # else:
+            #     p_loss = self.perceptual_loss(inputs, reconstructions)
+            #     nll_loss += self.perceptual_weight * p_loss
+            p_loss, s_loss = self.perceptual_loss(inputs, reconstructions)
+            nll_loss += self.perceptual_weight * (p_loss + self.style_weight * s_loss)
 
             loss = nll_loss + self.codebook_weight * codebook_loss
 
@@ -139,8 +142,9 @@ class VQLPIPSWithDiscriminator(nn.Module):
                 "{}_supervised/p_loss".format(split): p_loss.detach(),
                 "{}_total/total_loss".format(split): loss.clone().detach().mean(),
             }
-            if self.style_weight > 0:
-                log.update({"{}_supervised/style_loss".format(split): s_loss.detach()})
+            # if self.style_weight > 0:
+            #     log.update({"{}_supervised/style_loss".format(split): s_loss.detach()})
+            log.update({"{}_supervised/style_loss".format(split): s_loss.detach()})
             if fake is not None:
                 log.update({
                     "{}_adversarial_weight/disc_factor".format(split): torch.tensor(disc_factor),
