@@ -106,9 +106,7 @@ class VQLPIPSWithDiscriminator(nn.Module):
             p_loss, s_loss = self.perceptual_loss(inputs, reconstructions)
             nll_loss += self.perceptual_weight * (p_loss + self.style_weight * s_loss)
 
-            latent_var, latent_mean = torch.var_mean(latent)
-            print(latent_var, latent_mean)
-            latent_kl_loss = kl_loss(latent_var, latent_mean)
+            latent_kl_loss = kl_loss(*torch.var_mean(latent))
 
             loss = nll_loss + self.codebook_weight * codebook_loss + self.kl_weight * latent_kl_loss
 
