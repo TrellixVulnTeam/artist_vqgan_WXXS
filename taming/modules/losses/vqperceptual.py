@@ -142,8 +142,9 @@ class VQLPIPSWithDiscriminator(nn.Module):
                 "{}_supervised/p_loss".format(split): p_loss.detach(),
                 "{}_total/total_loss".format(split): loss.clone().detach().mean(),
             }
-            if self.style_weight > 0:
-                log.update({"{}_supervised/style_loss".format(split): s_loss.detach()})
+            # if self.style_weight > 0:
+            #     log.update({"{}_supervised/style_loss".format(split): s_loss.detach()})
+            log.update({"{}_supervised/style_loss".format(split): s_loss.detach()})
             if fake is not None:
                 log.update({
                     "{}_adversarial_weight/disc_factor".format(split): torch.tensor(disc_factor),
