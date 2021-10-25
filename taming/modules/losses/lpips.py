@@ -80,6 +80,7 @@ class LPIPSWithStyle(LPIPS):
         val = diffs[0]
         for l in range(1, len(self.chns)):
             val += diffs[l]
+        print(val)
         return loss_c, val
 
     @staticmethod
@@ -164,6 +165,6 @@ def spatial_average(x, keepdim=True):
 
 
 def double_softmax(x, eps=1e-10):
-    x = torch.clamp_max(x, 80.)
-    exp_x = torch.exp(x)
+    # x = torch.clamp_max(x, 80.)
+    exp_x = torch.exp(x * 0.5)
     return exp_x / (exp_x.sum(dim=(-2, -1), keepdim=True) + eps)
