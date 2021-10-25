@@ -44,6 +44,7 @@ class VQLPIPSWithDiscriminator(nn.Module):
         self.codebook_weight = codebook_weight
         self.pixel_weight = pixelloss_weight
         self.kl_weight = kl_weight
+        self.start_kl = False
         self.perceptual_weight = perceptual_weight
         self.style_weight = style_weight
         # if self.style_weight > 0:
@@ -83,7 +84,7 @@ class VQLPIPSWithDiscriminator(nn.Module):
         d_weight = torch.clamp(d_weight, 0.0, 1e4).detach()
         return d_weight
 
-    def forward(self, codebook_loss, latent, inputs, reconstructions, fake, optimizer_idx,
+    def forward(self, codebook_loss, latent_var, latent_mean, inputs, reconstructions, fake, optimizer_idx,
                 global_step, last_layer=None, cond=None, split="train"):
         inputs = inputs.contiguous()
         reconstructions = reconstructions.contiguous()
@@ -106,9 +107,12 @@ class VQLPIPSWithDiscriminator(nn.Module):
             p_loss, s_loss = self.perceptual_loss(inputs, reconstructions)
             nll_loss += self.perceptual_weight * (p_loss + self.style_weight * s_loss)
 
-            latent_kl_loss = kl_loss(*torch.var_mean(latent))
+            latent_kl_loss = kl_loss(latent_var, latent_mean)
+            if latent_var >= 1.:
+                self.start_kl = True
+            kl_weight = self.kl_weight if self.start_kl else 0.
 
-            loss = nll_loss + self.codebook_weight * codebook_loss + self.kl_weight * latent_kl_loss
+            loss = nll_loss + self.codebook_weight * codebook_loss + kl_weight * latent_kl_loss
 
             # the GAN part
             if disc_factor > 0:

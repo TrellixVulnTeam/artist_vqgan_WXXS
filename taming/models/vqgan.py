@@ -117,18 +117,20 @@ class VQModel(pl.LightningModule):
         if optimizer_idx == 0:
             x = self.get_input(batch, self.image_key)
             xrec, quant, qloss = self(x, return_quant=True)
+            quant_var, quant_mean = torch.var_mean(quant)
 
             if self.calc_adv_loss:
-                random_z = torch.randn_like(self.zs[:x.shape[0]])
+                random_z = self.random_latent(quant_mean, quant_var, quant.shape)
                 fake = self.forward_with_latent(random_z)
             else:
                 fake = None
-            self.real, self.reconstruction, self.fake, self.quant, self.qloss = x, xrec, fake, quant, qloss
+            self.real, self.reconstruction, self.fake = x, xrec, fake
+            self.quant_var, self.quant_mean, self.qloss = quant_var, quant_mean, qloss
 
         if optimizer_idx == 0:
             # autoencode
             aeloss, log_dict_ae = \
-                self.loss(self.qloss, self.quant, self.real, self.reconstruction, self.fake,
+                self.loss(self.qloss, self.quant_var, self.quant_mean, self.real, self.reconstruction, self.fake,
                           optimizer_idx, self.global_step, last_layer=self.get_last_layer(), split="train")
             self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=True, on_epoch=False)
             return aeloss
@@ -139,7 +141,8 @@ class VQModel(pl.LightningModule):
             reconstruction = self.reconstruction.detach()
             fake = self.fake.detach() if self.fake is not None else None
             discloss, log_dict_disc = \
-                self.loss(None, None, disc_x, reconstruction, fake, optimizer_idx, self.global_step, split="train")
+                self.loss(None, None, None, disc_x, reconstruction, fake,
+                          optimizer_idx, self.global_step, split="train")
             if self.calc_adv_loss:
                 log_dict_disc.update({'ada/aug_prob': self.get_disc_aug_p()})
             self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=True, on_epoch=False)
@@ -150,15 +153,18 @@ class VQModel(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         x = self.get_input(batch, self.image_key)
         xrec, quant, qloss = self(x, return_quant=True)
+        quant_var, quant_mean = torch.var_mean(quant)
+
         if self.global_step >= self.loss.discriminator_iter_start:
-            random_z = torch.rand(x.shape[0], *self.decoder.z_shape[1:]).to(self.device) * 2. - 1.
+            random_z = self.random_latent(quant_mean, quant_var, quant.shape)
             fake = self.forward_with_latent(random_z)
         else:
             fake = None
 
         aeloss, log_dict_ae = \
-            self.loss(qloss, quant, x, xrec, fake, 0, self.global_step, last_layer=self.get_last_layer(), split="val")
-        discloss, log_dict_disc = self.loss(None, None, x, xrec, fake, 1, self.global_step, split="val")
+            self.loss(qloss, quant_var, quant_mean, x, xrec, fake,
+                      0, self.global_step, last_layer=self.get_last_layer(), split="val")
+        discloss, log_dict_disc = self.loss(None, None, None, x, xrec, fake, 1, self.global_step, split="val")
         self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=False, on_epoch=True)
         self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=False, on_epoch=True)
 
@@ -175,8 +181,9 @@ class VQModel(pl.LightningModule):
         xrec, qloss = self(x)
 
         aeloss, log_dict_ae = \
-            self.loss(qloss, None, x, xrec, None, 0, self.global_step, last_layer=self.get_last_layer(), split="test")
-        discloss, log_dict_disc = self.loss(None, x, xrec, None, 1, self.global_step, split="test")
+            self.loss(qloss, None, None, x, xrec, None,
+                      0, self.global_step, last_layer=self.get_last_layer(), split="test")
+        discloss, log_dict_disc = self.loss(None, None, None, x, xrec, None, 1, self.global_step, split="test")
         if self.global_step != 0:
             self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=False, on_epoch=True)
             self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=False, on_epoch=True)
@@ -208,6 +215,10 @@ class VQModel(pl.LightningModule):
                                   lr=lr, betas=(0.5, 0.9))
         opt_disc = torch.optim.Adam(self.loss.parameters(), lr=lr, betas=(0.5, 0.9))
         return [opt_ae, opt_disc], []
+
+    @staticmethod
+    def random_latent(mean, var, shape):
+        return torch.normal(mean.detach().expand(shape), var.detach().expand(shape))
 
     def get_last_layer(self):
         return self.decoder.conv_out.weight
