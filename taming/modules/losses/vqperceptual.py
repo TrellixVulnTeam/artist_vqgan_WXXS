@@ -96,7 +96,7 @@ class VQLPIPSWithDiscriminator(nn.Module):
 
             if self.style_weight > 0:
                 p_loss, s_loss = self.perceptual_loss(inputs, reconstructions)
-                nll_loss = self.perceptual_weight * (p_loss + self.style_weight * s_loss)
+                nll_loss += self.perceptual_weight * (p_loss + self.style_weight * s_loss)
             else:
                 p_loss = self.perceptual_loss(inputs, reconstructions)
                 nll_loss += self.perceptual_weight * p_loss
