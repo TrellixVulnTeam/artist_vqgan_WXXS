@@ -139,7 +139,7 @@ class VQModel(pl.LightningModule):
             reconstruction = self.reconstruction.detach()
             fake = self.fake.detach() if self.fake is not None else None
             discloss, log_dict_disc = \
-                self.loss(None, disc_x, reconstruction, fake, optimizer_idx, self.global_step, split="train")
+                self.loss(None, None, disc_x, reconstruction, fake, optimizer_idx, self.global_step, split="train")
             if self.calc_adv_loss:
                 log_dict_disc.update({'ada/aug_prob': self.get_disc_aug_p()})
             self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=True, on_epoch=False)
@@ -158,7 +158,7 @@ class VQModel(pl.LightningModule):
 
         aeloss, log_dict_ae = \
             self.loss(qloss, quant, x, xrec, fake, 0, self.global_step, last_layer=self.get_last_layer(), split="val")
-        discloss, log_dict_disc = self.loss(None, x, xrec, fake, 1, self.global_step, split="val")
+        discloss, log_dict_disc = self.loss(None, None, x, xrec, fake, 1, self.global_step, split="val")
         self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=False, on_epoch=True)
         self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=False, on_epoch=True)
 
