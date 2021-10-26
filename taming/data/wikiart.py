@@ -79,6 +79,9 @@ class WikiArtTrain(WikiArtBase):
 
         print(f'total {len(self.data)} training data.')
 
+    def __len__(self):
+        return 1000
+
 
 class WikiArtValidation(WikiArtBase):
     def __init__(self, size, root='/data/datasets/art/wiki-art/', base=None, *args):
