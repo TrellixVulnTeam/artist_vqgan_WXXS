@@ -117,6 +117,7 @@ class VQModel(pl.LightningModule):
         if optimizer_idx == 0:
             x = self.get_input(batch, self.image_key)
             xrec, quant, qloss = self(x, return_quant=True)
+            print('check: ', quant.mean().item())
             quant_var, quant_mean = torch.var_mean(quant, unbiased=False)
 
             if self.calc_adv_loss:
