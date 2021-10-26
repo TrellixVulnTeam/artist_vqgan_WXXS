@@ -2,6 +2,7 @@ model:
   base_learning_rate: 4.5e-06
   target: taming.models.vqgan.VQModel
   params:
+    ckpt_path: /data/wikiart_vqgan.ckpt
     embed_dim: 256
     n_embed: 16384
     ada_target: 0.6
