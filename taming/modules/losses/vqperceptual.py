@@ -134,7 +134,7 @@ class VQLPIPSWithDiscriminator(nn.Module):
                     assert not self.training
                     adv_weight, adv_fake_weight = torch.zeros(2)
 
-                loss += disc_factor * adv_weight * (g_rec_loss + adv_fake_weight * g_fake_loss * 0.)
+                loss += disc_factor * adv_weight * (g_rec_loss * 0. + adv_fake_weight * g_fake_loss * 0.)
 
             else:
                 adv_weight, adv_fake_weight, g_rec_loss, g_fake_loss = torch.zeros(4)
