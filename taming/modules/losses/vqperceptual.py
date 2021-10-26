@@ -97,7 +97,6 @@ class VQLPIPSWithDiscriminator(nn.Module):
             # generator update
             rec_loss = torch.abs(inputs - reconstructions).mean()
             nll_loss = self.pixel_weight * rec_loss
-            print('rec loss: ', rec_loss.item())
 
             # if self.style_weight > 0:
             #     p_loss, s_loss = self.perceptual_loss(inputs, reconstructions)
@@ -106,11 +105,9 @@ class VQLPIPSWithDiscriminator(nn.Module):
             #     p_loss = self.perceptual_loss(inputs, reconstructions)
             #     nll_loss += self.perceptual_weight * p_loss
             p_loss, s_loss = self.perceptual_loss(inputs, reconstructions)
-            print('p_loss, s_loss: ', p_loss.item(), s_loss.item())
             nll_loss += self.perceptual_weight * (p_loss + self.style_weight * s_loss)
 
             latent_kl_loss = kl_loss(latent_var, latent_mean)
-            print('kl loss: ', latent_kl_loss.item())
             if latent_var >= 1.:
                 self.start_kl = True
             kl_weight = self.kl_weight if self.start_kl else 0.
