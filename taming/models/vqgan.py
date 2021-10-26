@@ -218,7 +218,7 @@ class VQModel(pl.LightningModule):
 
     @staticmethod
     def random_latent(mean, var, shape):
-        return torch.normal(mean.expand(shape), var.expand(shape))
+        return torch.normal((mean - 0.0009).expand(shape), torch.sqrt((var / 0.558).expand(shape)))
 
     def get_last_layer(self):
         return self.decoder.conv_out.weight

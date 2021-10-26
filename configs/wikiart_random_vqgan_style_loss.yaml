@@ -35,7 +35,7 @@ model:
         style_weight: 0.7
         disc_conditional: false
         disc_in_channels: 3
-        disc_start: 170000
+        disc_start: 0
         disc_weight: 0.8
 data:
   target: main.DataModuleFromConfig

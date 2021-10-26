@@ -107,7 +107,6 @@ class VQLPIPSWithDiscriminator(nn.Module):
             nll_loss += self.perceptual_weight * (p_loss + self.style_weight * s_loss)
 
             latent_kl_loss = kl_loss(latent_var / 0.558, latent_mean - 0.0009)
-            print('kl loss: ', latent_kl_loss.item())
 
             loss = nll_loss + self.codebook_weight * codebook_loss + self.kl_weight * latent_kl_loss
 
@@ -147,7 +146,7 @@ class VQLPIPSWithDiscriminator(nn.Module):
                 "{}_supervised/p_loss".format(split): p_loss.detach(),
                 "{}_supervised/kl_loss".format(split): latent_kl_loss.detach(),
                 "{}_stat/quant_mean".format(split): latent_mean.detach(),
-                "{}_stat/quant_std".format(split): latent_var.detach().square(),
+                "{}_stat/quant_std".format(split): latent_var.detach().sqrt(),
                 "{}_total/total_loss".format(split): loss.clone().detach().mean(),
             }
             # if self.style_weight > 0:
