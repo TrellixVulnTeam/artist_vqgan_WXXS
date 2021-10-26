@@ -59,7 +59,9 @@ class VQModel(pl.LightningModule):
         if monitor is not None:
             self.monitor = monitor
 
-        self.register_buffer('zs', self.random_latent(0.0009, 0.558 ** .5, (36, *self.decoder.z_shape[1:])))
+        self.mean = 0.0009
+        self.std = 0.558 ** .5
+        self.register_buffer('zs', self.random_latent(self.mean, self.std, (36, *self.decoder.z_shape[1:])))
 
     def init_from_ckpt(self, path, ignore_keys=list()):
         sd = torch.load(path, map_location="cpu")["state_dict"]
@@ -215,11 +217,13 @@ class VQModel(pl.LightningModule):
         opt_disc = torch.optim.Adam(self.loss.parameters(), lr=lr, betas=(0.5, 0.9))
         return [opt_ae, opt_disc], []
 
-    @staticmethod
-    def random_latent(mean: float or torch.FloatTensor, var: float or torch.FloatTensor, shape):
+    def random_latent(self, mean: float or torch.FloatTensor, var: float or torch.FloatTensor, shape):
         if not isinstance(mean, torch.Tensor):
             mean = torch.tensor(mean)
             var = torch.tensor(var)
+        if torch.isnan(mean) or torch.isnan(var):
+            mean = torch.tensor(self.mean, device=self.device)
+            var = torch.tensor(self.std ** 2, device=self.device)
         return torch.normal(mean.expand(shape), var.sqrt().expand(shape))
 
     def get_last_layer(self):
