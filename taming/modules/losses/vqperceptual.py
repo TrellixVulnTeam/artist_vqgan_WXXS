@@ -18,21 +18,18 @@ def adopt_weight(weight, global_step, threshold=0, value=0.):
     return weight
 
 
-def hinge_d_loss(logits_real, logits_rec, logits_fake):
+def hinge_d_loss(logits_real, logits_fake):
     loss_real = torch.mean(F.relu(1. - logits_real))
-    loss_rec = torch.mean(F.relu(1. + logits_rec))
     loss_fake = torch.mean(F.relu(1. + logits_fake))
-    # d_loss = loss_real * .5 + (loss_rec + loss_fake) * .25
-    d_loss = loss_real * .5 + loss_fake * .5
-    return d_loss, loss_real, loss_rec, loss_fake
+    d_loss = (loss_real + loss_fake) * .5
+    return d_loss, loss_real, loss_fake
 
 
-def vanilla_d_loss(logits_real, logits_rec, logits_fake):
+def vanilla_d_loss(logits_real, logits_fake):
     loss_real = torch.mean(torch.nn.functional.softplus(-logits_real))
-    loss_rec = torch.mean(torch.nn.functional.softplus(logits_rec))
     loss_fake = torch.mean(torch.nn.functional.softplus(logits_fake))
-    d_loss = loss_real * .5 + (loss_rec + loss_fake) * .25
-    return d_loss, loss_real, loss_rec, loss_fake
+    d_loss = (loss_real + loss_fake) * .5
+    return d_loss, loss_real, loss_fake
 
 
 class VQLPIPSWithDiscriminator(nn.Module):
@@ -58,6 +55,11 @@ class VQLPIPSWithDiscriminator(nn.Module):
                                                  use_actnorm=use_actnorm,
                                                  ndf=disc_ndf
                                                  ).apply(weights_init)
+        self.discriminator_fake = NLayerDiscriminator(input_nc=disc_in_channels,
+                                                      n_layers=disc_num_layers,
+                                                      use_actnorm=use_actnorm,
+                                                      ndf=disc_ndf
+                                                      ).apply(weights_init)
         self.discriminator_iter_start = disc_start
         if disc_loss == "hinge":
             self.disc_loss = hinge_d_loss
@@ -81,7 +83,7 @@ class VQLPIPSWithDiscriminator(nn.Module):
             g_grads = torch.autograd.grad(g_loss, self.last_layer[0], retain_graph=True)[0]
 
         d_weight = torch.norm(g_grads) / (torch.norm(nll_grads) + 1e-4)
-        d_weight = torch.clamp(d_weight, 0.1, 1e4).detach()
+        d_weight = torch.clamp(d_weight, 0.1, 10).detach()
         return d_weight
 
     def forward(self, codebook_loss, latent_var, latent_mean, inputs, reconstructions, fake, optimizer_idx,
@@ -116,12 +118,12 @@ class VQLPIPSWithDiscriminator(nn.Module):
                 if cond is None:
                     assert not self.disc_conditional
                     logits_rec = self.discriminator(reconstructions)
-                    logits_fake = self.discriminator(fake) \
+                    logits_fake = self.discriminator_fake(fake) \
                         if fake is not None else torch.tensor(0.).to(logits_rec.device)
                 else:
                     assert self.disc_conditional
                     logits_rec = self.discriminator(torch.cat((reconstructions, cond), dim=1))
-                    logits_fake = self.discriminator(torch.cat((fake, cond), dim=1)) \
+                    logits_fake = self.discriminator_fake(torch.cat((fake, cond), dim=1)) \
                         if fake is not None else torch.tensor(0.).to(logits_rec.device)
                 g_rec_loss = -torch.mean(logits_rec)
                 g_fake_loss = -torch.mean(logits_fake)
@@ -136,13 +138,13 @@ class VQLPIPSWithDiscriminator(nn.Module):
                 #
                 # loss += disc_factor * adv_weight * (g_rec_loss + adv_fake_weight * g_fake_loss)
                 try:
-                    adv_weight = self.calculate_adaptive_weight(nll_loss, g_fake_loss, last_layer=last_layer)
-                    adv_fake_weight = torch.zeros(1)
+                    adv_weight = self.calculate_adaptive_weight(nll_loss, g_rec_loss, last_layer=last_layer)
+                    adv_fake_weight = self.calculate_adaptive_weight(nll_loss, g_fake_loss)
                 except RuntimeError:
                     assert not self.training
                     adv_weight, adv_fake_weight = torch.zeros(2)
 
-                loss += disc_factor * adv_weight * g_fake_loss
+                loss += disc_factor * (adv_weight * g_rec_loss + adv_fake_weight * g_fake_loss)
 
             else:
                 adv_weight, adv_fake_weight, g_rec_loss, g_fake_loss = torch.zeros(4)
@@ -169,35 +171,43 @@ class VQLPIPSWithDiscriminator(nn.Module):
                     "{}_adversarial_G/g_rec_loss".format(split): g_rec_loss.detach(),
                     "{}_adversarial_G/g_fake_loss".format(split): g_fake_loss.detach(),
                 })
-            return loss * 0., log
+            return loss, log
 
         if optimizer_idx == 1:
             # second pass for discriminator update
             if disc_factor > 0:
+                # logits_{discr}_{input}
                 if cond is None:
-                    logits_real = self.discriminator(inputs)
-                    logits_rec = self.discriminator(reconstructions)
-                    logits_fake = self.discriminator(fake) \
-                        if fake is not None else torch.tensor(1.).to(logits_rec.device)
-                else:
-                    logits_real = self.discriminator(torch.cat((inputs, cond), dim=1))
-                    logits_rec = self.discriminator(torch.cat((reconstructions, cond), dim=1))
-                    logits_fake = self.discriminator(torch.cat((fake, cond), dim=1)) \
-                        if fake is not None else torch.tensor(1.).to(logits_rec.device)
+                    logits_rec_real = self.discriminator(inputs)
+                    logits_rec_rec = self.discriminator(reconstructions)
 
-                d_loss, d_loss_real, d_loss_rec, d_loss_fake = self.disc_loss(logits_real, logits_rec, logits_fake)
-                print(d_loss_real.item(), d_loss_rec.item())
-                d_loss *= disc_factor
+                    logits_fake_real = self.discriminator_fake(inputs)
+                    logits_fake_fake = self.discriminator_fake(fake)
+                else:
+                    logits_rec_real = self.discriminator(torch.cat((inputs, cond), dim=1))
+                    logits_rec_rec = self.discriminator(torch.cat((reconstructions, cond), dim=1))
+
+                    logits_fake_real = self.discriminator_fake(torch.cat((inputs, cond), dim=1))
+                    logits_fake_fake = self.discriminator_fake(torch.cat((fake, cond), dim=1))
+
+                d_rec_loss_total, d_rec_loss_real, d_rec_loss_rec = self.disc_loss(logits_rec_real, logits_rec_rec)
+                d_fake_loss_total, d_fake_loss_real, d_fake_loss_fake = self.disc_loss(logits_fake_real, logits_fake_fake)
+                d_loss = disc_factor * (d_rec_loss_total + d_fake_loss_total)
+
+                log = {
+                    "{}_adversarial_D/total".format(split): d_loss.clone().detach(),
+                    "{}_adversarial_D/disc_rec_total".format(split): d_rec_loss_total.clone().detach(),
+                    "{}_adversarial_D/disc_fake_real".format(split): d_fake_loss_total.detach(),
+                    "{}_adversarial_D/disc_rec_loss_rec".format(split): d_rec_loss_rec.detach(),
+                    "{}_adversarial_D/disc_rec_loss_real".format(split): d_rec_loss_real.detach(),
+                    "{}_adversarial_D/disc_fake_loss_fake".format(split): d_fake_loss_fake.detach(),
+                    "{}_adversarial_D/disc_fake_loss_real".format(split): d_fake_loss_real.detach(),
+                }
 
             else:
                 d_loss = torch.zeros((1, 1)).to(reconstructions.device)
                 d_loss = d_loss + 0 * self.__hidden__(d_loss)  # let d_loss have grad_fn when using mixing precision
-                d_loss_real, d_loss_rec, d_loss_fake = torch.zeros(3)
 
-            log = {
-                "{}_adversarial_D/disc_loss".format(split): d_loss.clone().detach(),
-                "{}_adversarial_D/disc_loss_real".format(split): d_loss_real.detach(),
-                "{}_adversarial_D/disc_loss_fake".format(split): d_loss_fake.detach(),
-                "{}_adversarial_D/disc_loss_rec".format(split): d_loss_rec.detach(),
-            } if fake is not None else dict()
-            return d_loss * 0., log
+                log = {}
+
+            return d_loss, log

@@ -148,7 +148,9 @@ class VQModel(pl.LightningModule):
                 log_dict_disc.update({'ada/aug_prob': self.get_disc_aug_p()})
             self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=True, on_epoch=False)
             if self.calc_adv_loss:
-                training_stats.report(self.ada_stats_regex, 1 - log_dict_disc['train_adversarial_D/disc_loss_real'])
+                loss_real_avg = (log_dict_disc['train_adversarial_D/disc_rec_loss_real'] +
+                                 log_dict_disc['train_adversarial_D/disc_fake_loss_real']) / 2.
+                training_stats.report(self.ada_stats_regex, 1 - loss_real_avg)
             return discloss
 
     def validation_step(self, batch, batch_idx):
@@ -224,7 +226,7 @@ class VQModel(pl.LightningModule):
         if torch.isnan(mean) or torch.isnan(var):
             mean = torch.tensor(self.mean, device=self.device)
             var = torch.tensor(self.std ** 2, device=self.device)
-        return torch.normal(mean.expand(shape), var.sqrt().expand(shape))
+        return torch.normal(mean.detach().expand(shape), var.detach().sqrt().expand(shape))
 
     def get_last_layer(self):
         return self.decoder.conv_out.weight
