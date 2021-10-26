@@ -23,7 +23,7 @@ def hinge_d_loss(logits_real, logits_rec, logits_fake):
     loss_rec = torch.mean(F.relu(1. + logits_rec))
     loss_fake = torch.mean(F.relu(1. + logits_fake))
     # d_loss = loss_real * .5 + (loss_rec + loss_fake) * .25
-    d_loss = loss_real * .5 + loss_rec * .5
+    d_loss = loss_real * .5 + loss_fake * .5
     return d_loss, loss_real, loss_rec, loss_fake
 
 
@@ -126,15 +126,23 @@ class VQLPIPSWithDiscriminator(nn.Module):
                 g_rec_loss = -torch.mean(logits_rec)
                 g_fake_loss = -torch.mean(logits_fake)
 
+                # try:
+                #     adv_weight = self.calculate_adaptive_weight(nll_loss, g_rec_loss, last_layer=last_layer)
+                #     adv_fake_weight = self.calculate_adaptive_weight(g_rec_loss, g_fake_loss, last_layer=last_layer) \
+                #         if fake is not None else torch.zeros(1)
+                # except RuntimeError:
+                #     assert not self.training
+                #     adv_weight, adv_fake_weight = torch.zeros(2)
+                #
+                # loss += disc_factor * adv_weight * (g_rec_loss + adv_fake_weight * g_fake_loss)
                 try:
-                    adv_weight = self.calculate_adaptive_weight(nll_loss, g_rec_loss, last_layer=last_layer)
-                    adv_fake_weight = self.calculate_adaptive_weight(g_rec_loss, g_fake_loss, last_layer=last_layer) \
-                        if fake is not None else torch.zeros(1)
+                    adv_weight = self.calculate_adaptive_weight(nll_loss, g_fake_loss, last_layer=last_layer)
+                    adv_fake_weight = torch.zeros(1)
                 except RuntimeError:
                     assert not self.training
                     adv_weight, adv_fake_weight = torch.zeros(2)
 
-                loss += disc_factor * adv_weight * (g_rec_loss * 0. + adv_fake_weight * g_fake_loss * 0.)
+                loss += disc_factor * adv_weight * g_fake_loss
 
             else:
                 adv_weight, adv_fake_weight, g_rec_loss, g_fake_loss = torch.zeros(4)
