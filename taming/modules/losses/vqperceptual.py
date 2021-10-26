@@ -72,6 +72,10 @@ class VQLPIPSWithDiscriminator(nn.Module):
 
         self.__hidden__ = nn.Linear(1, 1, bias=False)
 
+        self.mean = 0
+        self.var = 0
+        self.total = 0
+
     def calculate_adaptive_weight(self, nll_loss, g_loss, last_layer=None):
         if last_layer is not None:
             nll_grads = torch.autograd.grad(nll_loss, last_layer, retain_graph=True)[0]
@@ -107,10 +111,12 @@ class VQLPIPSWithDiscriminator(nn.Module):
             p_loss, s_loss = self.perceptual_loss(inputs, reconstructions)
             nll_loss += self.perceptual_weight * (p_loss + self.style_weight * s_loss)
 
-            var, mean = latent_var / 0.3276, latent_mean - 0.00243
-            print('o: ', latent_var, latent_mean)
-            print('m: ', var, mean)
-            latent_kl_loss = kl_loss(var, mean)
+            self.mean += latent_mean.detach()
+            self.var += latent_var.detach()
+            self.total += 1
+            print('avg mean: ', self.mean / self.total)
+            print('avg var: ', self.var / self.total)
+            latent_kl_loss = kl_loss(latent_var, latent_mean)
             if latent_var >= 1.:
                 self.start_kl = True
             kl_weight = self.kl_weight if self.start_kl else 0.
@@ -167,7 +173,7 @@ class VQLPIPSWithDiscriminator(nn.Module):
                     "{}_adversarial_G/g_rec_loss".format(split): g_rec_loss.detach(),
                     "{}_adversarial_G/g_fake_loss".format(split): g_fake_loss.detach(),
                 })
-            return loss, log
+            return loss * 0., log
 
         if optimizer_idx == 1:
             # second pass for discriminator update
