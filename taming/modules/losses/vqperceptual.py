@@ -185,8 +185,6 @@ class VQLPIPSWithDiscriminator(nn.Module):
                     logits_fake = self.discriminator(torch.cat((fake, cond), dim=1)) \
                         if fake is not None else torch.tensor(1.).to(logits_rec.device)
 
-                print(logits_real.mean().item(), logits_rec.mean().item(), logits_fake.mean().item())
-
                 d_loss, d_loss_real, d_loss_rec, d_loss_fake = self.disc_loss(logits_real, logits_rec, logits_fake)
                 d_loss *= disc_factor
 
