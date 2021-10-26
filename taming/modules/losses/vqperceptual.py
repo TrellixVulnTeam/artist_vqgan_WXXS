@@ -111,9 +111,8 @@ class VQLPIPSWithDiscriminator(nn.Module):
             p_loss, s_loss = self.perceptual_loss(inputs, reconstructions)
             nll_loss += self.perceptual_weight * (p_loss + self.style_weight * s_loss)
 
-            print(latent_mean.detach().item(), latent_var.detach().item())
-            self.mean += latent_mean.detach().item()
-            self.var += latent_var.detach().item()
+            self.mean += latent_mean.detach()
+            self.var += latent_var.detach()
             self.total += 1
             print('avg mean: ', self.mean / self.total)
             print('avg var: ', self.var / self.total)
@@ -204,4 +203,4 @@ class VQLPIPSWithDiscriminator(nn.Module):
                 "{}_adversarial_D/disc_loss_fake".format(split): d_loss_fake.detach(),
                 "{}_adversarial_D/disc_loss_rec".format(split): d_loss_rec.detach(),
             } if fake is not None else dict()
-            return d_loss * 0., log
+            return d_loss, log
