@@ -196,8 +196,8 @@ class VQLPIPSWithDiscriminator(nn.Module):
 
                 log = {
                     "{}_adversarial_D/total".format(split): d_loss.clone().detach(),
-                    "{}_adversarial_D/disc_rec_total".format(split): d_rec_loss_total.clone().detach(),
-                    "{}_adversarial_D/disc_fake_real".format(split): d_fake_loss_total.detach(),
+                    "{}_adversarial_D/total_disc_rec".format(split): d_rec_loss_total.clone().detach(),
+                    "{}_adversarial_D/total_disc_fake".format(split): d_fake_loss_total.clone().detach(),
                     "{}_adversarial_D/disc_rec_loss_rec".format(split): d_rec_loss_rec.detach(),
                     "{}_adversarial_D/disc_rec_loss_real".format(split): d_rec_loss_real.detach(),
                     "{}_adversarial_D/disc_fake_loss_fake".format(split): d_fake_loss_fake.detach(),
