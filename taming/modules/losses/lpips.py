@@ -24,6 +24,9 @@ class LPIPS(nn.Module):
         for param in self.parameters():
             param.requires_grad = False
 
+        self.smooth = nn.Softmax2d()
+        self.criteria = nn.MSELoss(reduce=False)
+
     def load_from_pretrained(self, name="vgg_lpips"):
         ckpt = get_ckpt_path(name, "taming/modules/autoencoder/lpips")
         self.load_state_dict(torch.load(ckpt, map_location=torch.device("cpu")), strict=False)
@@ -41,11 +44,11 @@ class LPIPS(nn.Module):
     def forward(self, content_input, target, return_feats=False):
         input_c, input_t = self.scaling_layer(content_input), self.scaling_layer(target)
         outs_c, outs_t = self.net(input_c), self.net(input_t)
-        feats_c, feats_t, diffs = list(), list(), list()
+        smooth_out_c, smooth_out_t, diffs = list(), list(), list()
         for kk in range(len(self.chns)):
-            feats_c.append(normalize_tensor(outs_c[kk]))
-            feats_t.append(normalize_tensor(outs_t[kk]))
-            diffs.append((feats_c[-1] - feats_t[-1]) ** 2)
+            smooth_out_c.append(self.smooth(outs_c[kk]))
+            smooth_out_t.append(self.smooth(outs_t[kk]))
+            diffs.append(self.criteria(smooth_out_c[-1], smooth_out_t[-1]))
 
         lins = [self.lin0, self.lin1, self.lin2, self.lin3, self.lin4]
         res = [spatial_average(lins[kk].model(diffs[kk]), keepdim=True) for kk in range(len(self.chns))]
@@ -54,27 +57,26 @@ class LPIPS(nn.Module):
             val += res[l]
 
         if return_feats:
-            return val.mean(), outs_c, outs_t
+            return val.mean(), smooth_out_c, smooth_out_t
         return val.mean()
 
 
 class LPIPSWithStyle(LPIPS):
     def __init__(self, use_dropout=True):
         super(LPIPSWithStyle, self).__init__(use_dropout=use_dropout)
-        self.style_loss = nn.MSELoss(reduce=False)
-        self.smooth = nn.Softmax2d()
 
     def forward(self, content_input, target, style_input=None):
-        loss_c, outs_c, outs_t = super().forward(content_input, target, return_feats=True)
+        loss_c, smooth_outs_c, smooth_outs_t = super().forward(content_input, target, return_feats=True)
 
-        outs_s = self.net(self.scaling_layer(style_input)) if style_input is not None else outs_c
+        smooth_outs_s = [self.smooth(o) for o in self.net(self.scaling_layer(style_input))] \
+            if style_input is not None else smooth_outs_c
         diffs = list()
         for kk in range(len(self.chns)):
-            smooth_out_s = self.smooth(outs_s[kk])
-            smooth_out_t = self.smooth(outs_t[kk])
+            smooth_out_s = smooth_outs_s[kk]
+            smooth_out_t = smooth_outs_t[kk]
             std_s, mean_s = self.calc_mean_std(smooth_out_s)
             std_t, mean_t = self.calc_mean_std(smooth_out_t)
-            diff = self.style_loss(std_s, std_t) + self.style_loss(mean_s, mean_t)
+            diff = self.criteria(std_s, std_t) + self.criteria(mean_s, mean_t)
             diff = diff / self.calc_balanced_loss_scale(smooth_out_s, smooth_out_t)
             diffs.append(diff.mean())
 
