@@ -217,7 +217,7 @@ class VQModel(pl.LightningModule):
 
     @staticmethod
     def random_latent(mean: float or torch.FloatTensor, var: float or torch.FloatTensor, shape):
-        if not isinstance(torch.Tensor, mean):
+        if not isinstance(mean, torch.Tensor):
             print('float')
             mean = torch.tensor(mean)
             var = torch.tensor(var)
