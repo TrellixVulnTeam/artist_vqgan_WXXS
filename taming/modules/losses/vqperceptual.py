@@ -107,7 +107,7 @@ class VQLPIPSWithDiscriminator(nn.Module):
             p_loss, s_loss = self.perceptual_loss(inputs, reconstructions)
             nll_loss += self.perceptual_weight * (p_loss + self.style_weight * s_loss)
 
-            latent_kl_loss = kl_loss(latent_var * (0.3276 ** 2), latent_mean - 0.00243)
+            latent_kl_loss = kl_loss(latent_var / (0.3276 ** 2), latent_mean - 0.00243)
             if latent_var >= 1.:
                 self.start_kl = True
             kl_weight = self.kl_weight if self.start_kl else 0.
