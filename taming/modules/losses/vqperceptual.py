@@ -169,7 +169,7 @@ class VQLPIPSWithDiscriminator(nn.Module):
                     "{}_adversarial_G/g_rec_loss".format(split): g_rec_loss.detach(),
                     "{}_adversarial_G/g_fake_loss".format(split): g_fake_loss.detach(),
                 })
-            return loss, log
+            return loss * 0., log
 
         if optimizer_idx == 1:
             # second pass for discriminator update
@@ -186,6 +186,7 @@ class VQLPIPSWithDiscriminator(nn.Module):
                         if fake is not None else torch.tensor(1.).to(logits_rec.device)
 
                 d_loss, d_loss_real, d_loss_rec, d_loss_fake = self.disc_loss(logits_real, logits_rec, logits_fake)
+                print(d_loss_real.item(), d_loss_rec.item())
                 d_loss *= disc_factor
 
             else:
@@ -199,4 +200,4 @@ class VQLPIPSWithDiscriminator(nn.Module):
                 "{}_adversarial_D/disc_loss_fake".format(split): d_loss_fake.detach(),
                 "{}_adversarial_D/disc_loss_rec".format(split): d_loss_rec.detach(),
             } if fake is not None else dict()
-            return d_loss, log
+            return d_loss * 0., log
