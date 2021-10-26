@@ -80,7 +80,7 @@ class WikiArtTrain(WikiArtBase):
         print(f'total {len(self.data)} training data.')
 
     def __len__(self):
-        return 120
+        return 1000
 
 
 class WikiArtValidation(WikiArtBase):
