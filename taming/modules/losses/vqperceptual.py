@@ -166,15 +166,17 @@ class VQLPIPSWithDiscriminator(nn.Module):
             # second pass for discriminator update
             if disc_factor > 0:
                 if cond is None:
-                    logits_real = self.discriminator(inputs.contiguous().detach())
-                    logits_rec = self.discriminator(reconstructions.contiguous().detach())
-                    logits_fake = self.discriminator(fake.contiguous().detach()) \
+                    logits_real = self.discriminator(inputs)
+                    logits_rec = self.discriminator(reconstructions)
+                    logits_fake = self.discriminator(fake) \
                         if fake is not None else torch.tensor(1.).to(logits_rec.device)
                 else:
-                    logits_real = self.discriminator(torch.cat((inputs.contiguous().detach(), cond), dim=1))
-                    logits_rec = self.discriminator(torch.cat((reconstructions.contiguous().detach(), cond), dim=1))
-                    logits_fake = self.discriminator(torch.cat((fake.contiguous().detach(), cond), dim=1)) \
+                    logits_real = self.discriminator(torch.cat((inputs, cond), dim=1))
+                    logits_rec = self.discriminator(torch.cat((reconstructions, cond), dim=1))
+                    logits_fake = self.discriminator(torch.cat((fake, cond), dim=1)) \
                         if fake is not None else torch.tensor(1.).to(logits_rec.device)
+
+                print(logits_real.mean().item(), logits_rec.mean().item(), logits_fake.mean().item())
 
                 d_loss, d_loss_real, d_loss_rec, d_loss_fake = self.disc_loss(logits_real, logits_rec, logits_fake)
                 d_loss *= disc_factor
