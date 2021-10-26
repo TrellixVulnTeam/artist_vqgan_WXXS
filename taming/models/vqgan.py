@@ -59,8 +59,7 @@ class VQModel(pl.LightningModule):
         if monitor is not None:
             self.monitor = monitor
 
-        random_latent = torch.randn((36, *self.decoder.z_shape[1:]))
-        self.register_buffer('zs', random_latent)
+        self.register_buffer('zs', self.random_latent(0.0009, 0.558 ** .5, (36, *self.decoder.z_shape[1:])))
 
     def init_from_ckpt(self, path, ignore_keys=list()):
         sd = torch.load(path, map_location="cpu")["state_dict"]
@@ -217,9 +216,12 @@ class VQModel(pl.LightningModule):
         return [opt_ae, opt_disc], []
 
     @staticmethod
-    def random_latent(mean, var, shape):
-        print('var: ', var.min().item())
-        return torch.normal((mean - 0.0009).expand(shape), (var / 0.558).sqrt().expand(shape))
+    def random_latent(mean: float or torch.FloatTensor, var: float or torch.FloatTensor, shape):
+        if not isinstance(torch.Tensor, mean):
+            print('float')
+            mean = torch.tensor(mean)
+            var = torch.tensor(var)
+        return torch.normal(mean.expand(shape), var.sqrt().expand(shape))
 
     def get_last_layer(self):
         return self.decoder.conv_out.weight
