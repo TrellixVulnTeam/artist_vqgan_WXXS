@@ -30,7 +30,7 @@ model:
       params:
         pixelloss_weight: 1.0
         codebook_weight: 1.0
-        kl_weight: 0.
+        kl_weight: 1.0
         perceptual_weight: 1.0
         style_weight: 0.7
         disc_conditional: false
