@@ -324,13 +324,15 @@ class VectorQuantizer2(nn.Module):
             print('rearrange: ', rearrange(self.embedding.weight, 'n d -> d n').max().item())
             print('z_flatten: ', z_flattened.max().item())
             print('totol nan: ', torch.isnan(torch.einsum('bd,dn->bn', z_flattened, rearrange(self.embedding.weight, 'n d -> d n'))).sum().item())
-            exit()
         if torch.isnan(d.mean()):
             print('d!!!!')
-            exit()
 
         min_encoding_indices = torch.argmin(d, dim=1)
+        if torch.isnan(min_encoding_indices.mean()):
+            print('min_encoding_indices!!!!')
         z_q = self.embedding(min_encoding_indices).view(z.shape)
+        if torch.isnan(z_q.mean()):
+            print('z_q!!!!')
         perplexity = None
         min_encodings = None
 
@@ -343,13 +345,11 @@ class VectorQuantizer2(nn.Module):
                    torch.mean((z_q - z.detach()) ** 2)
         if torch.isnan(loss.mean()):
             print('q loss!!!!')
-            exit()
 
         # preserve gradients
         z_q = z + (z_q - z).detach()
         if torch.isnan(z_q.mean()):
             print('z_q!!!!')
-            exit()
 
         # reshape back to match original input shape
         z_q = rearrange(z_q, 'b h w c -> b c h w').contiguous()
