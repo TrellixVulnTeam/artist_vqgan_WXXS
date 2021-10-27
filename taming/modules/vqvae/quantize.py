@@ -299,10 +299,19 @@ class VectorQuantizer2(nn.Module):
         z = rearrange(z, 'b c h w -> b h w c').contiguous()
         z_flattened = z.view(-1, self.e_dim)
         # distances from z to embeddings e_j (z - e)^2 = z^2 + e^2 - 2 e * z
+        if torch.isnan(z_flattened.mean()):
+            print('z!!!!')
+            exit()
+        if torch.isnan(self.embedding.weight.mean()):
+            print('emb weight!!!!')
+            exit()
 
         d = torch.sum(z_flattened ** 2, dim=1, keepdim=True) + \
             torch.sum(self.embedding.weight**2, dim=1) - 2 * \
             torch.einsum('bd,dn->bn', z_flattened, rearrange(self.embedding.weight, 'n d -> d n'))
+        if torch.isnan(d.mean()):
+            print('d!!!!')
+            exit()
 
         min_encoding_indices = torch.argmin(d, dim=1)
         z_q = self.embedding(min_encoding_indices).view(z.shape)
@@ -316,9 +325,15 @@ class VectorQuantizer2(nn.Module):
         else:
             loss = torch.mean((z_q.detach()-z)**2) + self.beta * \
                    torch.mean((z_q - z.detach()) ** 2)
+        if torch.isnan(loss.mean()):
+            print('q loss!!!!')
+            exit()
 
         # preserve gradients
         z_q = z + (z_q - z).detach()
+        if torch.isnan(z_q.mean()):
+            print('z_q!!!!')
+            exit()
 
         # reshape back to match original input shape
         z_q = rearrange(z_q, 'b h w c -> b c h w').contiguous()
