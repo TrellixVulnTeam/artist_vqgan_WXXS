@@ -298,7 +298,9 @@ class VectorQuantizer2(nn.Module):
         # reshape z -> (batch, height, width, channel) and flatten
         z = rearrange(z, 'b c h w -> b h w c').contiguous()
         z_flattened = z.view(-1, self.e_dim)
-        pow_z = torch.sum(z_flattened ** 2, dim=1, keepdim=True)
+        print('z: ', z_flattened.min().item(), z_flattened.mean().item(), z_flattened.max().item())
+        print('emb: ', self.embedding.weight.min().item(), self.embedding.weight.mean().item(), self.embedding.weight.max().item())
+        z_flattened = z_flattened.clamp(-1e5, 1e5)
         # distances from z to embeddings e_j (z - e)^2 = z^2 + e^2 - 2 e * z
         if torch.isnan(z_flattened.mean()):
             print('z!!!!')
@@ -310,8 +312,6 @@ class VectorQuantizer2(nn.Module):
         d = torch.sum(z_flattened ** 2, dim=1, keepdim=True).clamp_max(1e7) + \
             torch.sum(self.embedding.weight**2, dim=1) - 2 * \
             torch.einsum('bd,dn->bn', z_flattened, rearrange(self.embedding.weight, 'n d -> d n'))
-        if torch.sum(z_flattened ** 2, dim=1, keepdim=True).clamp_max(1e7).max() == 1e7:
-            print('clamp!!!!!!!!!!!!!!')
         if torch.isnan(torch.sum(z_flattened ** 2, dim=1, keepdim=True).mean()):
             print('z_flattened sum!!!!')
             exit()
@@ -359,13 +359,17 @@ class VectorQuantizer2(nn.Module):
         # preserve gradients
         z_q = z + (z_q - z).detach()
         if torch.isnan(z.mean()):
+            print('z range: ', z.shape, z.min().item(), z.max().item())
             print('z 2!!!!')
+        if torch.isnan(z_q.mean()):
+            print('z_q range: ', z_q.shape, z_q.min().item(), z_q.max().item())
+            print('z_q 2!!!!')
         if torch.isnan((z_q - z).mean()):
             print('z_q - z 2!!!!')
         if torch.isnan((z_q - z).detach().mean()):
             print('z_q - z 2 detach!!!!')
         if torch.isnan(z_q.mean()):
-            print('z_q 2!!!!')
+            print('z_q 3!!!!')
 
         # reshape back to match original input shape
         z_q = rearrange(z_q, 'b h w c -> b c h w').contiguous()
