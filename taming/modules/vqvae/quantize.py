@@ -358,7 +358,6 @@ class VectorQuantizer2(nn.Module):
             print('q loss!!!!')
 
         # preserve gradients
-        z_q = z + (z_q - z).detach()
         if torch.isnan(z.mean()):
             print('z range: ', z.shape, z.min().item(), z.max().item())
             print('z 2!!!!')
@@ -369,6 +368,7 @@ class VectorQuantizer2(nn.Module):
             print('z_q - z 2!!!!')
         if torch.isnan((z_q - z).detach().mean()):
             print('z_q - z 2 detach!!!!')
+        z_q = z + (z_q - z).detach()
         if torch.isnan(z_q.mean()):
             print('z_q 3!!!!')
 
