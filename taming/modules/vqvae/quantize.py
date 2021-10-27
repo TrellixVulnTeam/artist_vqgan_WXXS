@@ -299,7 +299,6 @@ class VectorQuantizer2(nn.Module):
         z = rearrange(z, 'b c h w -> b h w c').contiguous()
         z_flattened = z.view(-1, self.e_dim)
         pow_z = torch.sum(z_flattened ** 2, dim=1, keepdim=True)
-        print('pre pow_z range: ', pow_z.shape, pow_z.min().item(), pow_z.max().item())
         # distances from z to embeddings e_j (z - e)^2 = z^2 + e^2 - 2 e * z
         if torch.isnan(z_flattened.mean()):
             print('z!!!!')
@@ -311,6 +310,8 @@ class VectorQuantizer2(nn.Module):
         d = torch.sum(z_flattened ** 2, dim=1, keepdim=True).clamp_max(1e7) + \
             torch.sum(self.embedding.weight**2, dim=1) - 2 * \
             torch.einsum('bd,dn->bn', z_flattened, rearrange(self.embedding.weight, 'n d -> d n'))
+        if torch.sum(z_flattened ** 2, dim=1, keepdim=True).clamp_max(1e7).max() == 1e7:
+            print('clamp!!!!!!!!!!!!!!')
         if torch.isnan(torch.sum(z_flattened ** 2, dim=1, keepdim=True).mean()):
             print('z_flattened sum!!!!')
             exit()
