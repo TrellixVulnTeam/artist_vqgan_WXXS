@@ -75,7 +75,6 @@ class VQModel(pl.LightningModule):
         print(f"Restored from {path}")
 
     def encode(self, x):
-        print(x.min().item(), x.mean().item(), x.max().item())
         if torch.isnan(x.mean()):
             print('x!!!!!')
             x = x.clamp(-1., 1.)
