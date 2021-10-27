@@ -309,6 +309,16 @@ class VectorQuantizer2(nn.Module):
         d = torch.sum(z_flattened ** 2, dim=1, keepdim=True) + \
             torch.sum(self.embedding.weight**2, dim=1) - 2 * \
             torch.einsum('bd,dn->bn', z_flattened, rearrange(self.embedding.weight, 'n d -> d n'))
+        if torch.isnan(torch.sum(z_flattened ** 2, dim=1, keepdim=True).mean()):
+            print('z_flattened sum!!!!')
+            exit()
+        if torch.isnan(torch.sum(self.embedding.weight**2, dim=1).mean()):
+            print('emb weight sum!!!!')
+            exit()
+        if torch.isnan(torch.einsum('bd,dn->bn', z_flattened, rearrange(self.embedding.weight, 'n d -> d n')).mean()):
+            print('einsum!!!!')
+            print(z_flattened.shape)
+            exit()
         if torch.isnan(d.mean()):
             print('d!!!!')
             exit()
