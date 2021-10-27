@@ -46,9 +46,17 @@ class VectorQuantizer(nn.Module):
         z_flattened = z.view(-1, self.e_dim)
         # distances from z to embeddings e_j (z - e)^2 = z^2 + e^2 - 2 e * z
 
+        if torch.isnan(z_flattened.mean()):
+            print('z!!!')
+            exit()
+
         d = torch.sum(z_flattened ** 2, dim=1, keepdim=True) + \
             torch.sum(self.embedding.weight**2, dim=1) - 2 * \
             torch.matmul(z_flattened, self.embedding.weight.t())
+
+        if torch.isnan(d.mean()):
+            print('d!!!')
+            exit()
 
         ## could possible replace this here
         # #\start...
