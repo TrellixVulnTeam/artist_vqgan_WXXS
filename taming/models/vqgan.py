@@ -77,7 +77,13 @@ class VQModel(pl.LightningModule):
     def encode(self, x):
         h = self.encoder(x)
         h = self.quant_conv(h)
+        if torch.isnan(h.mean()):
+            print('h!!!!')
+            exit()
         quant, emb_loss, info = self.quantize(h)
+        if torch.isnan(quant.mean()):
+            print('q!!!!!')
+            exit()
         return quant, emb_loss, info
 
     def decode(self, quant):
@@ -118,11 +124,23 @@ class VQModel(pl.LightningModule):
         if optimizer_idx == 0:
             x = self.get_input(batch, self.image_key)
             xrec, quant, qloss = self(x, return_quant=True)
+            if torch.isnan(xrec.mean()):
+                print('rec!!!!')
+                exit()
             quant_var, quant_mean = torch.var_mean(quant)
+            if torch.isnan(quant_mean.mean()):
+                print('mean!!!')
+                exit()
+            if torch.isnan(quant_var.mean()):
+                print('var!!!!')
+                exit()
 
             if self.calc_adv_loss:
                 random_z = self.random_latent(quant_mean, quant_var, quant.shape)
                 fake = self.forward_with_latent(random_z)
+                if torch.isnan(fake.mean()):
+                    print('fake!!!!')
+                    exit()
             else:
                 fake = None
             self.real, self.reconstruction, self.fake = x, xrec, fake
