@@ -82,7 +82,7 @@ class VQLPIPSWithDiscriminator(nn.Module):
             nll_grads = torch.autograd.grad(nll_loss, self.last_layer[0], retain_graph=True)[0]
             g_grads = torch.autograd.grad(g_loss, self.last_layer[0], retain_graph=True)[0]
 
-        d_weight = torch.norm(nll_grads) / (torch.norm(g_grads) + 1e-4)
+        d_weight = torch.norm(g_grads) / (torch.norm(nll_grads) + 1e-4)
         d_weight = torch.clamp(d_weight, 0.1, 10).detach()
         return d_weight
 
