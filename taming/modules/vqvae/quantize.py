@@ -69,6 +69,9 @@ class VectorQuantizer(nn.Module):
         min_encodings = torch.zeros(
             min_encoding_indices.shape[0], self.n_e).to(z)
         min_encodings.scatter_(1, min_encoding_indices, 1)
+        if torch.isnan(min_encodings.mean()):
+            print('min encode!!!')
+            exit()
 
         # dtype min encodings: torch.float32
         # min_encodings shape: torch.Size([2048, 512])
@@ -79,6 +82,9 @@ class VectorQuantizer(nn.Module):
             print('emb weight!!!')
             exit()
         z_q = torch.matmul(min_encodings, self.embedding.weight).view(z.shape)
+        if torch.isnan(z_q.mean()):
+            print('z_q!!!')
+            exit()
         #.........\end
 
         # with:
@@ -90,6 +96,9 @@ class VectorQuantizer(nn.Module):
         # compute loss for embedding
         loss = torch.mean((z_q.detach()-z)**2) + self.beta * \
             torch.mean((z_q - z.detach()) ** 2)
+        if torch.isnan(loss.mean()):
+            print('q loss!!!')
+            exit()
 
         # preserve gradients
         z_q = z + (z_q - z).detach()
