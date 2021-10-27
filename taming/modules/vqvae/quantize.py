@@ -328,7 +328,7 @@ class VectorQuantizer2(nn.Module):
             print('d!!!!')
 
         min_encoding_indices = torch.argmin(d, dim=1)
-        if torch.isnan(min_encoding_indices.mean()):
+        if torch.isnan(min_encoding_indices.float().mean()):
             print('min_encoding_indices!!!!')
         z_q = self.embedding(min_encoding_indices).view(z.shape)
         if torch.isnan(z_q.mean()):
