@@ -80,6 +80,9 @@ class VQModel(pl.LightningModule):
             x = x.nan_to_num()
         h = self.encoder(x)
         h = self.quant_conv(h)
+        if torch.isnan(h.mean()):
+            print('h!!!!!')
+            h = h.nan_to_num()
         quant, emb_loss, info = self.quantize(h)
         return quant, emb_loss, info
 
