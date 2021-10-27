@@ -307,7 +307,8 @@ class VectorQuantizer2(nn.Module):
         if torch.isnan(self.embedding.weight.mean()):
             print('emb weight!!!!')
             exit()
-        d = torch.sum(z_flattened ** 2, dim=1, keepdim=True) + \
+
+        d = torch.sum(z_flattened ** 2, dim=1, keepdim=True).clamp_max(1e7) + \
             torch.sum(self.embedding.weight**2, dim=1) - 2 * \
             torch.einsum('bd,dn->bn', z_flattened, rearrange(self.embedding.weight, 'n d -> d n'))
         if torch.isnan(torch.sum(z_flattened ** 2, dim=1, keepdim=True).mean()):
@@ -358,8 +359,10 @@ class VectorQuantizer2(nn.Module):
         z_q = z + (z_q - z).detach()
         if torch.isnan(z.mean()):
             print('z 2!!!!')
-        if torch.isnan((z_q - z).detach().mean()):
+        if torch.isnan((z_q - z).mean()):
             print('z_q - z 2!!!!')
+        if torch.isnan((z_q - z).detach().mean()):
+            print('z_q - z 2 detach!!!!')
         if torch.isnan(z_q.mean()):
             print('z_q 2!!!!')
 
