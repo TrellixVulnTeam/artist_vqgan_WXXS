@@ -251,7 +251,6 @@ class VectorQuantizer2(nn.Module):
 
         self.embedding = nn.Embedding(self.n_e, self.e_dim)
         self.embedding.weight.data.uniform_(-1.0 / self.n_e, 1.0 / self.n_e)
-        self.embedding.weight.data = torch.log(self.embedding.weight.data + 1e10)
 
         self.remap = remap
         if self.remap is not None:
@@ -297,21 +296,21 @@ class VectorQuantizer2(nn.Module):
         assert rescale_logits==False, "Only for interface compatible with Gumbel"
         assert return_logits==False, "Only for interface compatible with Gumbel"
         # reshape z -> (batch, height, width, channel) and flatten
-        log_z = torch.log(z + 1e-10)
-        log_z = rearrange(log_z, 'b c h w -> b h w c').contiguous()
-        log_z_flattened = log_z.view(-1, self.e_dim)
+        z = rearrange(z, 'b c h w -> b h w c').contiguous()
+        z_flattened = z.view(-1, self.e_dim)
+        pow_z = torch.sum(z_flattened ** 2, dim=1, keepdim=True)
+        print('pre pow_z range: ', pow_z.shape, pow_z.min().item(), pow_z.max().item())
         # distances from z to embeddings e_j (z - e)^2 = z^2 + e^2 - 2 e * z
-        if torch.isnan(log_z_flattened.mean()):
+        if torch.isnan(z_flattened.mean()):
             print('z!!!!')
             exit()
         if torch.isnan(self.embedding.weight.mean()):
             print('emb weight!!!!')
             exit()
-
-        d = torch.sum(log_z_flattened ** 2, dim=1, keepdim=True) + \
+        d = torch.sum(z_flattened ** 2, dim=1, keepdim=True) + \
             torch.sum(self.embedding.weight**2, dim=1) - 2 * \
-            torch.einsum('bd,dn->bn', log_z_flattened, rearrange(self.embedding.weight, 'n d -> d n'))
-        if torch.isnan(torch.sum(log_z_flattened ** 2, dim=1, keepdim=True).mean()):
+            torch.einsum('bd,dn->bn', z_flattened, rearrange(self.embedding.weight, 'n d -> d n'))
+        if torch.isnan(torch.sum(z_flattened ** 2, dim=1, keepdim=True).mean()):
             print('z_flattened sum!!!!')
             exit()
         if torch.isnan(torch.sum(self.embedding.weight**2, dim=1).mean()):
@@ -321,13 +320,13 @@ class VectorQuantizer2(nn.Module):
             print('rearrange sum!!!!')
             print(rearrange(self.embedding.weight, 'n d -> d n').max())
             exit()
-        if torch.isnan(torch.einsum('bd,dn->bn', log_z_flattened, rearrange(self.embedding.weight, 'n d -> d n')).mean()):
+        if torch.isnan(torch.einsum('bd,dn->bn', z_flattened, rearrange(self.embedding.weight, 'n d -> d n')).mean()):
             print('einsum!!!!')
             emb_rearrange = torch.sum(self.embedding.weight**2, dim=1)
             print('rearrange arange: ', emb_rearrange.shape, emb_rearrange.min().item(), emb_rearrange.max().item())
-            pow_z = torch.sum(log_z_flattened ** 2, dim=1, keepdim=True)
+            pow_z = torch.sum(z_flattened ** 2, dim=1, keepdim=True)
             print('pow_z range: ', pow_z.shape, pow_z.min().item(), pow_z.max().item())
-            einsum = torch.einsum('bd,dn->bn', log_z_flattened, rearrange(self.embedding.weight, 'n d -> d n'))
+            einsum = torch.einsum('bd,dn->bn', z_flattened, rearrange(self.embedding.weight, 'n d -> d n'))
             print('einsum range: ', einsum.shape, einsum.min().item(), einsum.max().item())
             print('totol nan: ', torch.isnan(einsum).sum().item())
             print('d range: ', d.shape, d.min().item(), d.max().item())
@@ -337,12 +336,11 @@ class VectorQuantizer2(nn.Module):
         min_encoding_indices = torch.argmin(d, dim=1)
         if torch.isnan(min_encoding_indices.float().mean()):
             print('min_encoding_indices!!!!')
-        log_z_q = self.embedding(min_encoding_indices).view(log_z.shape)
-        z_q = torch.exp(log_z_q)
+        z_q = self.embedding(min_encoding_indices).view(z.shape)
         if torch.isnan(z_q.mean()):
             print('min_encoding_indices range: ', min_encoding_indices.shape, min_encoding_indices.min().item(), min_encoding_indices.max().item())
             print('z_q range: ', z_q.shape, z_q.min().item(), z_q.max().item())
-            print('z_q!!!!')
+            print('z_q 1!!!!')
         perplexity = None
         min_encodings = None
 
@@ -358,8 +356,12 @@ class VectorQuantizer2(nn.Module):
 
         # preserve gradients
         z_q = z + (z_q - z).detach()
+        if torch.isnan(z.mean()):
+            print('z 2!!!!')
+        if torch.isnan((z_q - z).detach().mean()):
+            print('z_q - z 2!!!!')
         if torch.isnan(z_q.mean()):
-            print('z_q!!!!')
+            print('z_q 2!!!!')
 
         # reshape back to match original input shape
         z_q = rearrange(z_q, 'b h w c -> b c h w').contiguous()
