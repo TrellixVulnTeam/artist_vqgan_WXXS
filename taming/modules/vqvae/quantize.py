@@ -321,9 +321,14 @@ class VectorQuantizer2(nn.Module):
             exit()
         if torch.isnan(torch.einsum('bd,dn->bn', z_flattened, rearrange(self.embedding.weight, 'n d -> d n')).mean()):
             print('einsum!!!!')
-            print('rearrange: ', rearrange(self.embedding.weight, 'n d -> d n').max().item())
-            print('z_flatten: ', z_flattened.max().item())
-            print('totol nan: ', torch.isnan(torch.einsum('bd,dn->bn', z_flattened, rearrange(self.embedding.weight, 'n d -> d n'))).sum().item())
+            emb_rearrange = torch.sum(self.embedding.weight**2, dim=1)
+            print('rearrange arange: ', emb_rearrange.shape, emb_rearrange.min().item(), emb_rearrange.max().item())
+            pow_z = torch.sum(z_flattened ** 2, dim=1, keepdim=True)
+            print('pow_z range: ', pow_z.shape, pow_z.min().item(), pow_z.max().item())
+            einsum = torch.einsum('bd,dn->bn', z_flattened, rearrange(self.embedding.weight, 'n d -> d n'))
+            print('einsum range: ', einsum.shape, einsum.min().item(), einsum.max().item())
+            print('totol nan: ', torch.isnan(einsum).sum().item())
+            print('d range: ', d.shape, d.min().item(), d.max().item())
         if torch.isnan(d.mean()):
             print('d!!!!')
 
@@ -332,6 +337,8 @@ class VectorQuantizer2(nn.Module):
             print('min_encoding_indices!!!!')
         z_q = self.embedding(min_encoding_indices).view(z.shape)
         if torch.isnan(z_q.mean()):
+            print('min_encoding_indices range: ', min_encoding_indices.shape, min_encoding_indices.min().item(), min_encoding_indices.max().item())
+            print('z_q range: ', z_q.shape, z_q.min().item(), z_q.max().item())
             print('z_q!!!!')
         perplexity = None
         min_encodings = None
