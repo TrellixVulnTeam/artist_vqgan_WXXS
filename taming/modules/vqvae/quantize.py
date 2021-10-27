@@ -298,7 +298,7 @@ class VectorQuantizer2(nn.Module):
         # reshape z -> (batch, height, width, channel) and flatten
         z = rearrange(z, 'b c h w -> b h w c').contiguous()
         z_flattened = z.view(-1, self.e_dim)
-        z_flattened = z_flattened.clamp(-1e5, 1e5)
+        z_flattened = z_flattened.clamp(-1e2, 1e2)
         print('z: ', z_flattened.min().item(), z_flattened.mean().item(), z_flattened.max().item())
         print('emb: ', self.embedding.weight.min().item(), self.embedding.weight.mean().item(), self.embedding.weight.max().item())
 
