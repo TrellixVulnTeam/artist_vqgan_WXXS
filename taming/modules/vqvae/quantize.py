@@ -54,6 +54,9 @@ class VectorQuantizer(nn.Module):
         # #\start...
         # find closest encodings
         min_encoding_indices = torch.argmin(d, dim=1).unsqueeze(1)
+        if torch.isnan(min_encoding_indices.mean()):
+            print('encod ind!!!')
+            exit()
 
         min_encodings = torch.zeros(
             min_encoding_indices.shape[0], self.n_e).to(z)
@@ -64,6 +67,9 @@ class VectorQuantizer(nn.Module):
         # min_encoding_indices.shape: torch.Size([2048, 1])
 
         # get quantized latent vectors
+        if torch.isnan(self.embedding.weight.mean()):
+            print('emb weight!!!')
+            exit()
         z_q = torch.matmul(min_encodings, self.embedding.weight).view(z.shape)
         #.........\end
 
