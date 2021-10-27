@@ -32,7 +32,7 @@ model:
         codebook_weight: 1.0
         kl_weight: 1.0
         perceptual_weight: 1.0
-        style_weight: 0.7
+        style_weight: 0.
         disc_conditional: false
         disc_in_channels: 3
         disc_start: 0

@@ -48,17 +48,17 @@ class LPIPS(nn.Module):
         for kk in range(len(self.chns)):
             smooth_out_c.append(self.smooth(outs_c[kk]))
             smooth_out_t.append(self.smooth(outs_t[kk]))
-            diffs.append(self.criteria(smooth_out_c[-1], smooth_out_t[-1]))
+            diffs.append(self.criteria(smooth_out_c[-1], smooth_out_t[-1]).mean())
 
-        lins = [self.lin0, self.lin1, self.lin2, self.lin3, self.lin4]
-        res = [spatial_average(lins[kk].model(diffs[kk]), keepdim=True) for kk in range(len(self.chns))]
-        val = res[0]
+        # lins = [self.lin0, self.lin1, self.lin2, self.lin3, self.lin4]
+        # res = [spatial_average(lins[kk].model(diffs[kk]), keepdim=True) for kk in range(len(self.chns))]
+        val = diffs[0]
         for l in range(1, len(self.chns)):
-            val += res[l]
+            val += diffs[l]
 
         if return_feats:
-            return val.mean(), smooth_out_c, smooth_out_t
-        return val.mean()
+            return val, smooth_out_c, smooth_out_t
+        return val
 
 
 class LPIPSWithStyle(LPIPS):
