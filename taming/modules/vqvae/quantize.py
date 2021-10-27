@@ -323,7 +323,7 @@ class VectorQuantizer2(nn.Module):
             print('einsum!!!!')
             print('rearrange: ', rearrange(self.embedding.weight, 'n d -> d n').max().item())
             print('z_flatten: ', z_flattened.max().item())
-            print('totol nan: ', torch.isnan(torch.einsum('bd,dn->bn', z_flattened, rearrange(self.embedding.weight, 'n d -> d n')).sum().item()))
+            print('totol nan: ', torch.isnan(torch.einsum('bd,dn->bn', z_flattened, rearrange(self.embedding.weight, 'n d -> d n'))).sum().item())
             exit()
         if torch.isnan(d.mean()):
             print('d!!!!')
