@@ -2,7 +2,7 @@ model:
   base_learning_rate: 4.5e-06
   target: taming.models.vqgan.VQModel
   params:
-    ckpt_path: /data/models/taming_transformer/wikiart_vqgan.ckpt
+    ckpt_path: /data/models/taming_transformer/wikiart/wikiart_vqgan.ckpt
     embed_dim: 256
     n_embed: 16384
     ada_target: 0.6
@@ -31,7 +31,7 @@ model:
         pixelloss_weight: 1.0
         codebook_weight: 1.0
         kl_weight: 1.0
-        perceptual_weight: 1.0
+        perceptual_weight: 10.0
         style_weight: 0.
         disc_conditional: false
         disc_in_channels: 3
@@ -40,8 +40,8 @@ model:
 data:
   target: main.DataModuleFromConfig
   params:
-    batch_size: 6
-    num_workers: 16
+    batch_size: 2
+    num_workers: 12
     train:
       target: taming.data.wikiart.WikiArtTrain
       params:
@@ -89,6 +89,6 @@ data:
           crop: center
 lightning:
   trainer:
-    accumulate_grad_batches: 2
+    accumulate_grad_batches: 6
     log_every_n_steps: 50
     precision: 16
