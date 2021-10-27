@@ -84,7 +84,7 @@ class VQLPIPSWithDiscriminator(nn.Module):
 
         d_weight = torch.norm(g_grads) / (torch.norm(nll_grads) + 1e-4)
         d_weight = torch.clamp(d_weight, 0.1, 10).detach()
-        return d_weight
+        return d_weight * .5
 
     def forward(self, codebook_loss, latent_var, latent_mean, inputs, reconstructions, fake, optimizer_idx,
                 global_step, last_layer=None, cond=None, split="train"):
