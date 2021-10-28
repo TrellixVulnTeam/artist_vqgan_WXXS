@@ -36,8 +36,8 @@ model:
         style_weight: 0.
         disc_conditional: false
         disc_in_channels: 3
-        disc_num_layers: 1
-        disc_ndf: 512
+        disc_num_layers: 3
+        disc_ndf: 64
         disc_start: 0
         disc_weight: 0.8
 data:
