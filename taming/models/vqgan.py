@@ -156,7 +156,7 @@ class VQModel(pl.LightningModule):
             if self.calc_adv_loss:
                 loss_real_avg = (log_dict_disc['train_adversarial_D/disc_rec_loss_real'] +
                                  log_dict_disc['train_adversarial_D/disc_fake_loss_real']) / 2.
-                training_stats.report(self.ada_stats_regex, 1 - loss_real_avg)
+                training_stats.report(self.ada_stats_regex, (1 - loss_real_avg).nan_to_num(self.ada_target))
             return discloss
 
     def validation_step(self, batch, batch_idx):
