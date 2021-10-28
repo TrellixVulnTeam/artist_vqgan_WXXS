@@ -36,8 +36,8 @@ model:
         style_weight: 0.
         disc_conditional: false
         disc_in_channels: 3
-        disc_num_layers: 3
-        disc_ndf: 64
+        disc_num_layers: 2
+        disc_ndf: 128
         disc_start: 0
         disc_weight: 0.8
 data:
@@ -94,4 +94,4 @@ lightning:
   trainer:
     accumulate_grad_batches: 2
     log_every_n_steps: 50
-#    precision: 16
+    precision: 16
