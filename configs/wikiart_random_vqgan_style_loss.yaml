@@ -8,6 +8,7 @@ model:
     ada_target: 0.6
     ada_interval: 4
     ada_kimg: 500
+    ignore_keys: ['loss.discriminator']
     ddconfig:
       double_z: false
       z_channels: 256
@@ -35,6 +36,8 @@ model:
         style_weight: 0.
         disc_conditional: false
         disc_in_channels: 3
+        disc_num_layers: 1
+        disc_ndf: 1024
         disc_start: 0
         disc_weight: 0.8
 data:
@@ -91,4 +94,4 @@ lightning:
   trainer:
     accumulate_grad_batches: 2
     log_every_n_steps: 50
-    precision: 16
+#    precision: 16
