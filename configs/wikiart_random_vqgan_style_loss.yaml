@@ -86,13 +86,6 @@ data:
         base:
           rescale: 1.
           crop: center
-    test:
-      target: taming.data.wikiart.NatgeoTesing
-      params:
-        size: 256
-        base:
-          rescale: 1.
-          crop: center
 lightning:
   trainer:
     accumulate_grad_batches: 2
