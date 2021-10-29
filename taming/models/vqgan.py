@@ -59,7 +59,9 @@ class VQModel(pl.LightningModule):
         if monitor is not None:
             self.monitor = monitor
 
-        random_latent = torch.randn((36, *self.decoder.z_shape[1:]))
+        self.std = 0.558 ** 0.5
+        self.mean = 0.0009
+        random_latent = torch.normal(self.mean, self.std, (36, *self.decoder.z_shape[1:]))
         self.register_buffer('zs', random_latent)
 
     def init_from_ckpt(self, path, ignore_keys=list()):
@@ -120,7 +122,7 @@ class VQModel(pl.LightningModule):
             quant_var, quant_mean = torch.var_mean(quant)
 
             if self.calc_adv_loss:
-                random_z = self.random_latent(quant_mean, quant_var, quant.shape)
+                random_z = self.random_latent(self.mean, self.std, quant.shape)
                 fake = self.forward_with_latent(random_z)
             else:
                 fake = None
@@ -218,7 +220,7 @@ class VQModel(pl.LightningModule):
 
     @staticmethod
     def random_latent(mean, var, shape):
-        return torch.normal(mean.expand(shape), var.expand(shape))
+        return torch.normal(mean, var, shape)
 
     def get_last_layer(self):
         return self.decoder.conv_out.weight
