@@ -72,17 +72,21 @@ class VQLPIPSWithDiscriminator(nn.Module):
 
         self.__hidden__ = nn.Linear(1, 1, bias=False)
 
-    def calculate_adaptive_weight(self, nll_loss, g_loss, last_layer=None):
+    def calculate_adaptive_weight(self, nll_loss, g_loss_1, g_loss_2, last_layer=None):
         if last_layer is not None:
             nll_grads = torch.autograd.grad(nll_loss, last_layer, retain_graph=True)[0]
-            g_grads = torch.autograd.grad(g_loss, last_layer, retain_graph=True)[0]
+            g_grads_1 = torch.autograd.grad(g_loss_1, last_layer, retain_graph=True)[0]
+            g_grads_2 = torch.autograd.grad(g_loss_2, last_layer, retain_graph=True)[0]
         else:
             nll_grads = torch.autograd.grad(nll_loss, self.last_layer[0], retain_graph=True)[0]
-            g_grads = torch.autograd.grad(g_loss, self.last_layer[0], retain_graph=True)[0]
+            g_grads_1 = torch.autograd.grad(g_loss_1, self.last_layer[0], retain_graph=True)[0]
+            g_grads_2 = torch.autograd.grad(g_loss_2, self.last_layer[0], retain_graph=True)[0]
 
-        d_weight = torch.norm(nll_grads) / (torch.norm(g_grads) + 1e-4)
-        d_weight = torch.clamp(d_weight, 0.0, 1e4).detach()
-        return d_weight
+        d_weight_1 = torch.norm(nll_grads) / (torch.norm(g_grads_1) + 1e-4)
+        d_weight_1 = torch.clamp(d_weight_1, 1e-2, 1e2).detach()
+        d_weight_2 = torch.norm(nll_grads) / (torch.norm(g_grads_2) + 1e-4)
+        d_weight_2 = torch.clamp(d_weight_2, 1e-2, 1e2).detach()
+        return d_weight_1, d_weight_2
 
     def forward(self, codebook_loss, latent_var, latent_mean, inputs, reconstructions, fake, optimizer_idx,
                 global_step, last_layer=None, cond=None, split="train"):
@@ -130,14 +134,13 @@ class VQLPIPSWithDiscriminator(nn.Module):
                 g_fake_loss = -torch.mean(logits_fake)
 
                 try:
-                    adv_weight = self.calculate_adaptive_weight(nll_loss, g_rec_loss, last_layer=last_layer)
-                    adv_fake_weight = self.calculate_adaptive_weight(g_rec_loss, g_fake_loss, last_layer=last_layer) \
-                        if fake is not None else torch.zeros(1)
+                    adv_weight, adv_fake_weight = \
+                        self.calculate_adaptive_weight(nll_loss, g_rec_loss, g_fake_loss, last_layer=last_layer)
                 except RuntimeError:
                     assert not self.training
                     adv_weight, adv_fake_weight = torch.zeros(2)
 
-                loss += disc_factor * adv_weight * (g_rec_loss + adv_fake_weight * g_fake_loss)
+                loss += disc_factor * adv_weight * g_rec_loss + adv_fake_weight * g_fake_loss
 
             else:
                 adv_weight, adv_fake_weight, g_rec_loss, g_fake_loss = torch.zeros(4)
