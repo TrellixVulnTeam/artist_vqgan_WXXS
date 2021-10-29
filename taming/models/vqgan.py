@@ -122,7 +122,7 @@ class VQModel(pl.LightningModule):
             quant_var, quant_mean = torch.var_mean(quant)
 
             if self.calc_adv_loss:
-                random_z = self.random_latent(self.mean, self.std, quant.shape)
+                random_z = self.random_latent(self.mean, self.var, quant.shape)
                 fake = self.forward_with_latent(random_z)
             else:
                 fake = None
