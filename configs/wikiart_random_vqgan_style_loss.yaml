@@ -2,6 +2,8 @@ model:
   base_learning_rate: 4.5e-06
   target: taming.models.vqgan.VQModel
   params:
+    ckpt_path: '/data/models/taming_transformer/wikiart/wikiart_vqgan.ckpt'
+    ignore_keys: ['loss.discriminator']
     embed_dim: 256
     n_embed: 16384
     ada_target: 0.6
@@ -29,12 +31,12 @@ model:
       params:
         pixelloss_weight: 1.0
         codebook_weight: 1.0
-        kl_weight: 0.
+        kl_weight: 1.
         perceptual_weight: 1.0
         style_weight: 0.7
         disc_conditional: false
         disc_in_channels: 3
-        disc_start: 170000
+        disc_start: 0
         disc_weight: 0.8
 data:
   target: main.DataModuleFromConfig
