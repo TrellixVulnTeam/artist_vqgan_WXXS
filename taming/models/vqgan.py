@@ -59,8 +59,8 @@ class VQModel(pl.LightningModule):
         if monitor is not None:
             self.monitor = monitor
 
-        self.mean = 0.0009
-        self.std = 0.558 ** .5
+        self.register_buffer('mean', torch.tensor(0.0009))
+        self.register_buffer('var', torch.tensor(0.558))
         self.register_buffer('zs', self.random_latent(self.mean, self.std, (36, *self.decoder.z_shape[1:])))
 
     def init_from_ckpt(self, path, ignore_keys=list()):
