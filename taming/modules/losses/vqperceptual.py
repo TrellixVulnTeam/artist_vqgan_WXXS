@@ -22,7 +22,7 @@ def hinge_d_loss(logits_real, logits_rec, logits_fake):
     loss_real = torch.mean(F.relu(1. - logits_real))
     loss_rec = torch.mean(F.relu(1. + logits_rec))
     loss_fake = torch.mean(F.relu(1. + logits_fake))
-    d_loss = loss_real * .5 + (loss_rec + loss_fake) * .25
+    d_loss = loss_real * .5 + (loss_rec * 0.9 + loss_fake * 0.1) * .5
     return d_loss, loss_real, loss_rec, loss_fake
 
 
@@ -140,7 +140,7 @@ class VQLPIPSWithDiscriminator(nn.Module):
                     assert not self.training
                     adv_weight, adv_fake_weight = torch.zeros(2)
 
-                loss += disc_factor * adv_weight * g_rec_loss + adv_fake_weight * g_fake_loss
+                loss += disc_factor * (adv_weight * g_rec_loss * 0.9 + adv_fake_weight * g_fake_loss * 0.1)
 
             else:
                 adv_weight, adv_fake_weight, g_rec_loss, g_fake_loss = torch.zeros(4)

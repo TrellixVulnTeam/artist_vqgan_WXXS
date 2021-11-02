@@ -122,7 +122,7 @@ class VQModel(pl.LightningModule):
             quant_var, quant_mean = torch.var_mean(quant)
 
             if self.calc_adv_loss:
-                random_z = self.random_latent(self.mean, self.var, quant.shape)
+                random_z = self.random_latent(self.mean, self.var, quant.shape, reference=x)
                 fake = self.forward_with_latent(random_z)
             else:
                 fake = None
@@ -149,7 +149,8 @@ class VQModel(pl.LightningModule):
                 log_dict_disc.update({'ada/aug_prob': self.get_disc_aug_p()})
             self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=True, on_epoch=False)
             if self.calc_adv_loss:
-                training_stats.report(self.ada_stats_regex, 1 - log_dict_disc['train_adversarial_D/disc_loss_real'])
+                report_value = torch.nan_to_num(1 - log_dict_disc['train_adversarial_D/disc_loss_real'], self.ada_target)
+                training_stats.report(self.ada_stats_regex, report_value)
             return discloss
 
     def validation_step(self, batch, batch_idx):
@@ -158,7 +159,7 @@ class VQModel(pl.LightningModule):
         quant_var, quant_mean = torch.var_mean(quant)
 
         if self.global_step >= self.loss.discriminator_iter_start:
-            random_z = self.random_latent(quant_mean, quant_var, quant.shape)
+            random_z = self.random_latent(self.mean, self.var, quant.shape, quant)
             fake = self.forward_with_latent(random_z)
         else:
             fake = None
@@ -219,11 +220,14 @@ class VQModel(pl.LightningModule):
         return [opt_ae, opt_disc], []
 
     @staticmethod
-    def random_latent(mean, var, shape):
+    def random_latent(mean, var, shape, reference=None):
         if not isinstance(mean, torch.Tensor):
             mean = torch.tensor(mean)
             var = torch.tensor(var)
-        return torch.normal(mean.detach().expand(shape), var.detach().sqrt().expand(shape))
+        latent = torch.normal(mean.detach().expand(shape), var.detach().sqrt().expand(shape))
+        if reference is not None:
+            latent = latent.to(reference)
+        return latent
 
     def get_last_layer(self):
         return self.decoder.conv_out.weight
